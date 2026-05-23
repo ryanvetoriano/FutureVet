@@ -58,6 +58,9 @@ O banco de dados foi modelado contendo as seguintes entidades principais:
 * Vacina
 * Consulta
 
+### MER
+![Esquema MER](docs/images/mer.png)
+
 ### Principais relacionamentos
 
 * **Usuario 1:N Pet**
