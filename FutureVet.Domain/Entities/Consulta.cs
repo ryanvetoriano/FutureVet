@@ -3,35 +3,28 @@ using FutureVet.Domain.Exceptions;
 
 namespace FutureVet.Domain.Entities;
 
-public class Consultas : BaseEntity
+public class Consulta : BaseEntity
 {
-    public string TipoConsulta
-    { get; private set; }
+    public string TipoConsulta { get; private set; }
 
-    public DateTime Data
-    { get; private set; }
+    public DateTime Data { get; private set; }
 
-    public TimeSpan Hora
-    { get; private set; }
+    public string Hora { get; private set; }
 
-    public string Local
-    { get; private set; }
+    public string Local { get; private set; }
 
+    public Guid PetId { get; private set; }
 
-    public Guid PetId
-    { get; private set; }
-
-    public Pet Pet
-    { get; private set; }
+    public Pet? Pet { get; private set; }
 
 
-    private Consultas() { }
+    private Consulta() { }
 
 
-    public Consultas(
+    public Consulta(
         string tipoConsulta,
         DateTime data,
-        TimeSpan hora,
+        String hora,
         string local,
         Guid petId)
     {
@@ -64,7 +57,6 @@ public class Consultas : BaseEntity
         AtualizarData();
     }
 
-
     public void DefinirData(
         DateTime data)
     {
@@ -73,15 +65,14 @@ public class Consultas : BaseEntity
         AtualizarData();
     }
 
-
-    public void DefinirHora(
-        TimeSpan hora)
+    public void DefinirHora(string hora)
     {
-        Hora = hora;
+        if (string.IsNullOrWhiteSpace(hora))
+            throw new DomainException("Hora inválida.");
 
+        Hora = hora;
         AtualizarData();
     }
-
 
     public void AtualizarLocal(
         string local)

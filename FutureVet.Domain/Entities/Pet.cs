@@ -8,36 +8,25 @@ public class Pet : BaseEntity
 {
     public string NomePet { get; private set; }
 
-    public EspeciePet Especie
-        { get; private set; }
+    public EspeciePet Especie { get; private set; }
 
-    public string? Raca
-        { get; private set; }
+    public string? Raca { get; private set; }
 
-    public int Idade
-        { get; private set; }
+    public int Idade { get; private set; }
 
-    public PortePet Tamanho
-        { get; private set; }
+    public PortePet Tamanho { get; private set; }
 
-    public decimal Peso
-        { get; private set; }
+    public decimal Peso { get; private set; }
 
+    public Guid UsuarioId { get; private set; }
 
-    public Guid UsuarioId
-        { get; private set; }
+    public Usuario? Usuario { get; private set; }
 
-    public Usuario Usuario
-        { get; private set; }
+    public ICollection<Vacina> Vacinas { get; private set; }
+        = new List<Vacina>();
 
-
-    public ICollection<Vacinas> Vacinas
-        { get; private set; }
-        = new List<Vacinas>();
-
-    public ICollection<Consultas> Consultas
-        { get; private set; }
-        = new List<Consultas>();
+    public ICollection<Consulta> Consultas { get; private set; }
+        = new List<Consulta>();
 
 
     private Pet() { }
@@ -68,11 +57,9 @@ public class Pet : BaseEntity
     }
 
 
-    public void AtualizarNome(
-        string nome)
+    public void AtualizarNome(string nome)
     {
-        if (string.IsNullOrWhiteSpace(
-            nome))
+        if (string.IsNullOrWhiteSpace(nome))
             throw new DomainException(
                 "Nome inválido.");
 
@@ -80,7 +67,6 @@ public class Pet : BaseEntity
 
         AtualizarData();
     }
-
 
     public void DefinirEspecie(
         EspeciePet especie)
@@ -90,7 +76,6 @@ public class Pet : BaseEntity
         AtualizarData();
     }
 
-
     public void AtualizarRaca(
         string? raca)
     {
@@ -98,7 +83,6 @@ public class Pet : BaseEntity
 
         AtualizarData();
     }
-
 
     public void DefinirIdade(
         int idade)
@@ -112,7 +96,6 @@ public class Pet : BaseEntity
         AtualizarData();
     }
 
-
     public void DefinirPorte(
         PortePet porte)
     {
@@ -120,7 +103,6 @@ public class Pet : BaseEntity
 
         AtualizarData();
     }
-
 
     public void AtualizarPeso(
         decimal peso)

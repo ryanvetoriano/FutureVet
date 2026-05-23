@@ -3,32 +3,25 @@ using FutureVet.Domain.Exceptions;
 
 namespace FutureVet.Domain.Entities;
 
-public class Vacinas : BaseEntity
+public class Vacina : BaseEntity
 {
-    public string NomeVacina
-    { get; private set; }
+    public string NomeVacina { get; private set; }
 
-    public DateTime DataAplicacao
-    { get; private set; }
+    public DateTime DataAplicacao { get; private set; }
 
-    public DateTime ProximaDose
-    { get; private set; }
+    public DateTime ProximaDose { get; private set; }
 
-    public string LocalAplicacao
-    { get; private set; }
+    public string LocalAplicacao { get; private set; }
 
+    public Guid PetId { get; private set; }
 
-    public Guid PetId
-    { get; private set; }
-
-    public Pet Pet
-    { get; private set; }
+    public Pet? Pet { get; private set; }
 
 
-    private Vacinas() { }
+    private Vacina() { }
 
 
-    public Vacinas(
+    public Vacina(
         string nomeVacina,
         DateTime dataAplicacao,
         DateTime proximaDose,
@@ -77,7 +70,10 @@ public class Vacinas : BaseEntity
     public void AtualizarProximaDose(
         DateTime data)
     {
-        if (data < DataAplicacao)
+        if (
+            data.Date <
+            DataAplicacao.Date
+        )
             throw new DomainException(
                 "Próxima dose inválida.");
 

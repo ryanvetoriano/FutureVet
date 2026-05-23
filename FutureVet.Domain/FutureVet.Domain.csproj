@@ -6,4 +6,8 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <Compile Remove="Enums\EspeciePet2.cs" />
+    </ItemGroup>
+
 </Project>
