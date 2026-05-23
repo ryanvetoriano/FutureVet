@@ -6,4 +6,8 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\FutureVet.Domain\FutureVet.Domain.csproj" />
+    </ItemGroup>
+
 </Project>
