@@ -47,8 +47,8 @@ public class PetConfiguration
                 x => x.Tamanho)
             .HasConversion<int>();
 
-        builder.Property(
-            x => x.Disponivel);
+        builder.Property(x => x.Disponivel)
+            .HasColumnType("NUMBER(1)");
 
         builder.Property(
             x => x.DataCriacao);

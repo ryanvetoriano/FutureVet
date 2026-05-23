@@ -38,8 +38,8 @@ public class VacinaConfiguration
                 x => x.ProximaDose)
             .IsRequired();
 
-        builder.Property(
-            x => x.Disponivel);
+        builder.Property(x => x.Disponivel)
+            .HasColumnType("NUMBER(1)");
 
         builder.Property(
             x => x.DataCriacao);

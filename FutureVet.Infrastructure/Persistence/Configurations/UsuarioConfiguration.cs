@@ -48,8 +48,8 @@ public class UsuarioConfiguration
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(
-                x => x.Disponivel)
+        builder.Property(x => x.Disponivel)
+            .HasColumnType("NUMBER(1)")
             .IsRequired();
 
         builder.Property(

@@ -364,4 +364,8 @@ As tabelas são criadas via migrations do EF Core:
 
 # 👥 Autores
 
-* (Seu Nome) — RM000000 — GitHub: https://github.com/seu-usuario
+* Ryan Vetoriano | RM 565667
+* João Victor Caetano Alves da Silva | RM 562074
+* João Victor Bueno Castelini da Silva | RM 564115
+* Raul Rezende Iemini Aguiar | RM 564002
+* Felipe Furlanetto | RM 562766

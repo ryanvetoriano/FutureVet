@@ -36,8 +36,8 @@ public class ConsultaConfiguration
 
         builder.Property(x => x.Hora).HasMaxLength(5).IsRequired();
 
-        builder.Property(
-            x => x.Disponivel);
+        builder.Property(x => x.Disponivel)
+            .HasColumnType("NUMBER(1)");
 
         builder.Property(
             x => x.DataCriacao);

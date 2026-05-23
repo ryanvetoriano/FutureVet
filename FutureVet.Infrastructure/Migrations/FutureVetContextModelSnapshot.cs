@@ -37,7 +37,7 @@ namespace FutureVet.Infrastructure.Migrations
                         .HasColumnType("TIMESTAMP(7)");
 
                     b.Property<bool>("Disponivel")
-                        .HasColumnType("BOOLEAN");
+                        .HasColumnType("NUMBER(1)");
 
                     b.Property<string>("Hora")
                         .IsRequired()
@@ -76,7 +76,7 @@ namespace FutureVet.Infrastructure.Migrations
                         .HasColumnType("TIMESTAMP(7)");
 
                     b.Property<bool>("Disponivel")
-                        .HasColumnType("BOOLEAN");
+                        .HasColumnType("NUMBER(1)");
 
                     b.Property<int>("Especie")
                         .HasColumnType("NUMBER(10)");
@@ -127,7 +127,7 @@ namespace FutureVet.Infrastructure.Migrations
                         .HasColumnType("TIMESTAMP(7)");
 
                     b.Property<bool>("Disponivel")
-                        .HasColumnType("BOOLEAN");
+                        .HasColumnType("NUMBER(1)");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -174,7 +174,7 @@ namespace FutureVet.Infrastructure.Migrations
                         .HasColumnType("TIMESTAMP(7)");
 
                     b.Property<bool>("Disponivel")
-                        .HasColumnType("BOOLEAN");
+                        .HasColumnType("NUMBER(1)");
 
                     b.Property<string>("LocalAplicacao")
                         .IsRequired()
