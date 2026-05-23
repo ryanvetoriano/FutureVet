@@ -1,0 +1,6 @@
+@FutureVet_HostAddress = http://localhost:5189
+
+GET {{FutureVet_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
