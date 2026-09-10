@@ -855,11 +855,109 @@ o ponto natural para registrar um authentication handler de teste.
 
 # 📊 Evidências
 
+## Sprints anteriores
+
 ### Swagger
 ![Swagger](docs/images/swagger.png)
 
 ### Esquema no banco Oracle
 ![Schema Oracle](docs/images/schema.png)
+
+---
+
+## Sprint 3 — Observabilidade
+
+Capturas obtidas com a API em execução conectada ao Oracle
+(`oracle.fiap.com.br`), no ambiente `Development`.
+
+### `GET /health` — visão completa
+
+Status geral e o resultado de cada check, com duração individual. O check `database`
+abre uma conexão real com o Oracle.
+
+![GET /health](docs/images/health.png)
+
+### `GET /health/live` — liveness
+
+Responde apenas sobre o processo. Note que o check `database` **não** aparece: uma queda
+do banco não deve fazer um orquestrador matar um processo saudável.
+
+![GET /health/live](docs/images/health-live.png)
+
+### `GET /health/ready` — readiness
+
+Inclui as dependências externas. É este endpoint que passa a `503` quando o Oracle está
+indisponível, retirando a instância do balanceamento.
+
+![GET /health/ready](docs/images/health-ready.png)
+
+### `GET /metrics` — métricas no formato Prometheus
+
+![GET /metrics](docs/images/metrics.png)
+
+Trecho da mesma resposta, com as métricas HTTP que atendem ao requisito de
+**tempo de resposta** e **taxa de erros** — o histograma é rotulado por
+`http_response_status_code` e `http_route`:
+
+```text
+http_server_request_duration_seconds_count{http_request_method="GET",http_response_status_code="200",http_route="api/Usuario",...} 4
+http_server_request_duration_seconds_sum{http_request_method="GET",http_response_status_code="200",http_route="api/Usuario",...} 2.0392792
+
+http_server_request_duration_seconds_count{http_request_method="GET",http_response_status_code="404",http_route="api/Pet/{id:guid}",...} 2
+http_server_request_duration_seconds_sum{http_request_method="GET",http_response_status_code="404",http_route="api/Pet/{id:guid}",...} 0.1829127
+
+http_server_active_requests{http_request_method="GET",url_scheme="http"} 1
+```
+
+### Correlation ID
+
+O identificador enviado pelo cliente é reaproveitado e devolvido na resposta:
+
+```text
+requisição enviada com  X-Correlation-ID: entrega-sprint3-demo
+resposta devolveu       X-Correlation-ID: entrega-sprint3-demo
+```
+
+### Logging estruturado em arquivo
+
+Linhas reais de `FutureVet.API/logs/api-20260910.log`, mostrando o request logging com
+método, rota, status, tempo de resposta e correlation ID — e o nível variando conforme
+o status (`INF` para 200, `WRN` para 404):
+
+```text
+2026-09-10 16:19:27.212 -03:00 [INF] CorrelationId=42eeeb0b-8ba9-4648-9431-c493ff4f76ba HTTP GET /api/Usuario respondeu 200 em 82.4344 ms {"RequestHost":"localhost:5189","RequestScheme":"http","Endpoint":"FutureVet.API.Controllers.UsuarioController.GetAll (FutureVet.API)","SourceContext":"Serilog.AspNetCore.RequestLoggingMiddleware","Application":"FutureVet.API","Environment":"Development"}
+
+2026-09-10 16:18:56.713 -03:00 [WRN] CorrelationId=4af4998f-9bf5-46d1-b1d4-fc3738fb3e58 HTTP GET /favicon.ico respondeu 404 em 0.0930 ms {"RequestHost":"localhost:5189","RequestScheme":"http","SourceContext":"Serilog.AspNetCore.RequestLoggingMiddleware","Application":"FutureVet.API","Environment":"Development"}
+```
+
+---
+
+## Sprint 3 — Testes automatizados
+
+Saída real de `dotnet test`, com os testes de integração rodando contra o Oracle:
+
+```text
+Execução de teste para tests/FutureVet.UnitTests/bin/Debug/net10.0/FutureVet.UnitTests.dll (.NETCoreApp,Version=v10.0)
+Execução de teste para tests/FutureVet.IntegrationTests/bin/Debug/net10.0/FutureVet.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+
+Aprovado!  - Com falha: 0, Aprovado: 95, Ignorado: 0, Total: 95, Duracao: 598 ms - FutureVet.UnitTests.dll (net10.0)
+Aprovado!  - Com falha: 0, Aprovado: 93, Ignorado: 0, Total: 93, Duracao: 13 s  - FutureVet.IntegrationTests.dll (net10.0)
+```
+
+**188 testes, 0 falhas, 0 ignorados.**
+
+Cobertura por camada, coletada com `dotnet test --collect:"XPlat Code Coverage"`:
+
+| Projeto de teste | Camada | Linhas | Branches |
+|---|---|---:|---:|
+| UnitTests | `FutureVet.Domain` | **97,2%** | 100,0% |
+| UnitTests | `FutureVet.Application` | **90,2%** | 77,1% |
+| IntegrationTests | `FutureVet.Application` | **96,3%** | 70,8% |
+| IntegrationTests | `FutureVet.Domain` | 90,5% | 80,0% |
+| IntegrationTests | `FutureVet.API` | 51,9% | 26,5% |
+
+Conforme o enunciado, a cobertura se concentra em **Domain** e **Application**, onde
+estão as regras de negócio.
 
 ---
 

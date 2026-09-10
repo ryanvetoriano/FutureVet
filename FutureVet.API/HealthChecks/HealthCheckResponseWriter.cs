@@ -1,5 +1,7 @@
+﻿using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Unicode;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace FutureVet.API.HealthChecks;
@@ -14,7 +16,12 @@ public static class HealthCheckResponseWriter
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        // Sem o encoder relaxado, acentos sairiam escapados ("execução").
+        // O payload é montado inteiramente pela aplicação e servido como
+        // application/json, nunca interpolado em HTML, então liberar o range
+        // completo é seguro e deixa a resposta legível.
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
     };
 
     public static Task WriteAsync(HttpContext context, HealthReport report)
