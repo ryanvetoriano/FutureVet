@@ -4,3 +4,15 @@ obj/
 riderModule.iml
 /_ReSharper.Caches/
 **/appsettings.Development.json
+
+# Logs estruturados gerados pelo sink de arquivo do Serilog
+logs/
+**/logs/
+
+# Resultados de testes e cobertura de codigo
+TestResults/
+**/TestResults/
+coverage/
+*.coverage
+*.coverxml
+coverage.cobertura.xml
