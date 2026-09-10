@@ -5,13 +5,13 @@ namespace FutureVet.Domain.Entities;
 
 public class Consulta : BaseEntity
 {
-    public string TipoConsulta { get; private set; }
+    public string TipoConsulta { get; private set; } = null!;
 
     public DateTime Data { get; private set; }
 
-    public string Hora { get; private set; }
+    public string Hora { get; private set; } = null!;
 
-    public string Local { get; private set; }
+    public string Local { get; private set; } = null!;
 
     public Guid PetId { get; private set; }
 

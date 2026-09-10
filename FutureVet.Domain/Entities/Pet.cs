@@ -6,7 +6,7 @@ namespace FutureVet.Domain.Entities;
 
 public class Pet : BaseEntity
 {
-    public string NomePet { get; private set; }
+    public string NomePet { get; private set; } = null!;
 
     public EspeciePet Especie { get; private set; }
 

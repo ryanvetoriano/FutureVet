@@ -5,13 +5,13 @@ namespace FutureVet.Domain.Entities;
 
 public class Vacina : BaseEntity
 {
-    public string NomeVacina { get; private set; }
+    public string NomeVacina { get; private set; } = null!;
 
     public DateTime DataAplicacao { get; private set; }
 
     public DateTime ProximaDose { get; private set; }
 
-    public string LocalAplicacao { get; private set; }
+    public string LocalAplicacao { get; private set; } = null!;
 
     public Guid PetId { get; private set; }
 

@@ -5,15 +5,15 @@ namespace FutureVet.Domain.Entities;
 
 public class Usuario : BaseEntity
 {
-    public string Nome { get; private set; }
+    public string Nome { get; private set; } = null!;
 
-    public string Email { get; private set; }
+    public string Email { get; private set; } = null!;
 
-    public string Senha { get; private set; }
+    public string Senha { get; private set; } = null!;
 
-    public string Cpf { get; private set; }
+    public string Cpf { get; private set; } = null!;
 
-    public string Telefone { get; private set; }
+    public string Telefone { get; private set; } = null!;
 
 
     public ICollection<Pet> Pets
