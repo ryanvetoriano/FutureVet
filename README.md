@@ -13,6 +13,17 @@ O projeto **FutureVet** foi desenvolvido com o objetivo de criar uma plataforma 
 
 O sistema facilita o controle da saúde animal e garante que nenhuma vacina ou consulta seja esquecida.
 
+Além das funcionalidades de negócio, a aplicação foi preparada para operar em produção com
+**monitoramento e observabilidade completos** e é coberta por uma **suíte de testes automatizados**:
+
+* ❤️ **Health checks** (`/health`, `/health/live`, `/health/ready`) com verificação real de conectividade
+* 📝 **Logging estruturado** com Serilog (console + arquivo com rotação diária)
+* 🔗 **Correlation ID** por requisição (`X-Correlation-ID`), propagado para todos os logs
+* 🔭 **Tracing distribuído** com OpenTelemetry (ASP.NET Core, HttpClient, EF Core e camada de Application)
+* 📈 **Métricas** expostas em `/metrics` no formato Prometheus
+* 🧪 **Testes unitários e de integração** em xUnit, organizados no padrão AAA
+* 🛡️ **Tratamento global de erros** padronizado em ProblemDetails (RFC 9457)
+
 ---
 
 # 🏗️ Arquitetura
@@ -43,8 +54,16 @@ FutureVet
 │       ├── Migrations
 │       └── Repositories
 │
-└── FutureVet.API
-    └── Controllers
+├── FutureVet.API
+│   ├── Controllers
+│   ├── Errors             # tratamento global de exceções (ProblemDetails)
+│   ├── Extensions         # AddApplicationHealthChecks, AddSerilogLogging, AddOpenTelemetryConfiguration
+│   ├── HealthChecks       # checks de banco e de serviços externos + writer JSON
+│   └── Middleware         # CorrelationIdMiddleware
+│
+└── tests
+    ├── FutureVet.UnitTests         # Domain + Application (xUnit + Moq)
+    └── FutureVet.IntegrationTests  # API completa (WebApplicationFactory)
 ```
 
 ---
@@ -153,6 +172,10 @@ Relacionamento:
 * Domain-Driven Design (DDD)
 * Oracle Database
 * Swagger / OpenAPI
+* Serilog (logging estruturado)
+* OpenTelemetry (tracing distribuído e métricas)
+* Prometheus (formato de exposição das métricas)
+* xUnit, Moq e coverlet (testes e cobertura)
 * Git / GitHub
 
 ---
@@ -218,22 +241,87 @@ Crie ou edite o arquivo `FutureVet.API/appsettings.Development.json` com suas cr
 }
 ```
 
+> ⚠️ **Nenhum segredo é versionado.** `appsettings.Development.json` está no `.gitignore`;
+> o `appsettings.json` do repositório contém apenas *placeholders*. Em outros ambientes,
+> prefira variáveis de ambiente
+> (`ConnectionStrings__OracleConnection=...`) ou User Secrets:
+>
+> ```bash
+> dotnet user-secrets set "ConnectionStrings:OracleConnection" "..." --project FutureVet.API
+> ```
+
+### Arquivos de configuração
+
+| Arquivo | Uso |
+|---------|-----|
+| `appsettings.json` | Base: Serilog (console + arquivo), OpenTelemetry, health checks. Sem segredos |
+| `appsettings.Development.json` | Credenciais locais. **Não versionado** |
+| `appsettings.Testing.json` | Ambiente usado pelos testes de integração: sem dependências externas |
+
 ## 3. Aplicar as migrations
 
 ```bash
 dotnet ef database update --project FutureVet.Infrastructure --startup-project FutureVet.API
 ```
 
-## 4. Rodar a API
+## 4. Restaurar, compilar e rodar a API
+
+```bash
+dotnet restore
+```
+
+```bash
+dotnet build
+```
 
 ```bash
 dotnet run --project FutureVet.API
 ```
 
-A documentação interativa estará disponível em:
+A documentação interativa (Swagger) fica na raiz da aplicação:
 
 ```
-http://localhost:5000
+http://localhost:5189
+```
+
+Endpoints de observabilidade disponíveis assim que a API sobe:
+
+```
+GET http://localhost:5189/health
+GET http://localhost:5189/health/live
+GET http://localhost:5189/health/ready
+GET http://localhost:5189/metrics
+```
+
+## 5. Configurar o Oracle usado pelos testes
+
+Os testes de integração rodam contra **Oracle** — o mesmo SGBD de produção, sem banco
+substituto. Informe a connection string ao projeto de testes com **User Secrets**, que grava
+fora do repositório (`%APPDATA%\Microsoft\UserSecrets` no Windows,
+`~/.microsoft/usersecrets` no Linux/macOS):
+
+```bash
+dotnet user-secrets set "ConnectionStrings:OracleConnection" "User Id=SEU_RM;Password=SUA_SENHA;Data Source=oracle.fiap.com.br:1521/ORCL" --project tests/FutureVet.IntegrationTests
+```
+
+Alternativamente, via variável de ambiente:
+
+```bash
+ConnectionStrings__OracleConnection="User Id=SEU_RM;Password=SUA_SENHA;Data Source=oracle.fiap.com.br:1521/ORCL"
+```
+
+O schema precisa estar aplicado (passo 3). Sem a connection string, os testes de integração
+falham com uma mensagem explicando exatamente o que configurar — eles **não são silenciados
+nem ignorados**.
+
+## 6. Executar os testes
+
+```bash
+dotnet test
+```
+
+```bash
+dotnet test --collect:"XPlat Code Coverage"
 ```
 
 ---
@@ -352,6 +440,416 @@ As tabelas são criadas via migrations do EF Core:
 | `TB_PET` | Dados dos pets (FK → TB_USUARIO) |
 | `TB_VACINA` | Histórico de vacinas (FK → TB_PET) |
 | `TB_CONSULTA` | Consultas veterinárias (FK → TB_PET) |
+
+---
+
+# 🔭 Observabilidade
+
+A aplicação expõe quatro endpoints de infraestrutura, todos fora do prefixo `/api` e
+sem autenticação, para que orquestradores e ferramentas de monitoramento consigam consultá-los.
+
+## ❤️ Health Checks
+
+Implementados com `Microsoft.Extensions.Diagnostics.HealthChecks`.
+
+| Endpoint | Finalidade | O que verifica | Status |
+|----------|-----------|----------------|--------|
+| `GET /health` | Visão completa da saúde da aplicação | Todos os checks registrados | 200 (Healthy/Degraded) / 503 (Unhealthy) |
+| `GET /health/live` | **Liveness** — o processo está vivo? | Apenas o check `api`. Não toca em dependências externas, de propósito: uma falha de banco não deve fazer o orquestrador matar um processo saudável | 200 / 503 |
+| `GET /health/ready` | **Readiness** — a aplicação pode receber tráfego? | `api` + `database` + serviços externos configurados | 200 (Healthy/Degraded) / 503 (Unhealthy) |
+
+### Checks registrados
+
+| Nome | Tag(s) | Verificação |
+|------|--------|-------------|
+| `api` | `live`, `ready` | O processo está em execução e servindo requisições |
+| `database` | `ready`, `db` | Conectividade **real** com o Oracle via `DbContext.Database.CanConnectAsync()` (abre uma conexão de fato); timeout de 10 s |
+| *(configurável)* | `ready`, `external` | Dependências HTTP externas declaradas em `HealthChecks:ExternalServices`, consultadas com `IHttpClientFactory` e timeout próprio |
+
+> O provider de banco é detectado a partir do `DbContext` já configurado. A aplicação usa
+> **Oracle** exclusivamente — nenhum check de MongoDB é registrado.
+
+### Serviços externos
+
+A FutureVet **não consome nenhuma API de terceiros** no momento, então a seção vem vazia.
+Qualquer integração futura passa a ser monitorada apenas adicionando uma entrada em
+`appsettings.json`, sem alteração de código:
+
+```json
+{
+  "HealthChecks": {
+    "ExternalServices": [
+      {
+        "Name": "gateway-pagamentos",
+        "Url": "https://exemplo.com/health",
+        "TimeoutSeconds": 5,
+        "Optional": false
+      }
+    ]
+  }
+}
+```
+
+`Optional: true` faz a indisponibilidade resultar em `Degraded` (a API continua recebendo
+tráfego) em vez de `Unhealthy`. Nunca inclua credenciais ou tokens na `Url`.
+
+### Formato da resposta
+
+```json
+{
+  "status": "Healthy",
+  "totalDuration": "00:00:00.0125430",
+  "checks": [
+    {
+      "name": "api",
+      "status": "Healthy",
+      "description": "API em execução.",
+      "duration": "00:00:00.0000368",
+      "tags": [ "live", "ready" ]
+    },
+    {
+      "name": "database",
+      "status": "Healthy",
+      "description": "Conexão com o banco de dados estabelecida (Oracle.EntityFrameworkCore).",
+      "duration": "00:00:00.0051200",
+      "tags": [ "ready", "db" ]
+    }
+  ]
+}
+```
+
+A resposta expõe apenas nome, status, descrição, duração e tags. **Connection strings,
+credenciais, tokens e mensagens de exceção nunca chegam ao cliente** — falhas são registradas
+integralmente no log do servidor e resumidas na descrição.
+
+---
+
+## 📈 Métricas
+
+```
+GET /metrics
+```
+
+Exposição no formato Prometheus (`text/plain; version=0.0.4`), gerada pelo
+`OpenTelemetry.Exporter.Prometheus.AspNetCore`. As instrumentações registradas publicam:
+
+| Instrumentação | Métricas principais |
+|----------------|--------------------|
+| ASP.NET Core | `http_server_request_duration_seconds` (histograma — dele derivam **quantidade de requisições**, **tempo de resposta** e **taxa de erros**, pois é rotulado por `http_response_status_code`, `http_route` e `http_request_method`) e `http_server_active_requests` (**requisições ativas**) |
+| HttpClient | `http_client_request_duration_seconds` — chamadas HTTP feitas pela aplicação |
+| Runtime .NET | `dotnet_gc_*`, `dotnet_thread_pool_*`, `dotnet_exceptions_total` |
+
+Exemplo do que é publicado:
+
+```
+http_server_request_duration_seconds_count{http_request_method="GET",http_response_status_code="200",http_route="api/Pet"} 12
+http_server_request_duration_seconds_count{http_request_method="GET",http_response_status_code="404",http_route="api/Pet/{id}"} 3
+http_server_active_requests{http_request_method="GET",url_scheme="http"} 1
+```
+
+### Conectando um Prometheus
+
+Não é necessário subir a stack completa para desenvolver, mas a API já está pronta para ser
+coletada. Basta apontar um Prometheus para o endpoint:
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: futurevet-api
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:5189']
+```
+
+Para enviar métricas **e** traces a um collector OTLP (Jaeger, Tempo, Grafana Alloy, etc.),
+basta preencher o endpoint na configuração — nenhuma alteração de código é necessária:
+
+```json
+{ "OpenTelemetry": { "OtlpEndpoint": "http://localhost:4317" } }
+```
+
+Com `OtlpEndpoint` vazio e ambiente `Development`, os traces saem no console.
+
+---
+
+## 📝 Logs
+
+Logging estruturado com **Serilog**, configurado pela seção `Serilog` do `appsettings.json`
+(níveis e sinks podem ser ajustados por ambiente sem recompilar).
+
+### Destinos
+
+| Sink | Configuração |
+|------|-------------|
+| **Console** | Ativo em todos os ambientes; usado durante o desenvolvimento |
+| **Arquivo** | `logs/api-.log` com **rotação diária** (`rollingInterval: Day`), limite de 10 MB por arquivo e retenção de 14 dias |
+
+A pasta `logs/` está no `.gitignore` e não é versionada.
+
+### Níveis
+
+* **Information** — requisições concluídas com sucesso, inicialização da aplicação
+* **Warning** — requisições rejeitadas (4xx), regras de negócio violadas, health check degradado
+* **Error** — exceções não tratadas (com a exceção completa) e respostas 5xx
+
+Sondas de infraestrutura (`/health*` e `/metrics`) são registradas em **Debug** para não
+poluir o log — são consultadas a cada poucos segundos e não agregam informação em Information.
+
+### Correlation ID
+
+Toda requisição possui um identificador de correlação no header **`X-Correlation-ID`**:
+
+1. Se o cliente enviar o header, o valor é **reaproveitado** (permite rastrear uma operação
+   através de vários serviços);
+2. Caso contrário, a API **gera** um novo GUID;
+3. O identificador é devolvido no header da **resposta**;
+4. É empurrado para o `LogContext` do Serilog, aparecendo em **todos os logs daquela requisição**;
+5. É anexado à `Activity` corrente, **ligando logs e traces**;
+6. Também é incluído no corpo `ProblemDetails` das respostas de erro.
+
+Exemplo de linha de log em arquivo:
+
+```
+2026-09-10 15:09:59.573 -03:00 [ERR] CorrelationId=36e501a3-cb2e-49ca-b31d-64f12c6f3902 HTTP GET /api/Pet respondeu 500 em 3111.4260 ms {"RequestHost":"localhost:5189","RequestScheme":"http","SourceContext":"Serilog.AspNetCore.RequestLoggingMiddleware","Application":"FutureVet.API","Environment":"Development"}
+```
+
+### Request logging
+
+Cada requisição gera uma linha com **método HTTP, rota, status, tempo de resposta e
+correlation ID**. O enriquecimento é deliberadamente restrito: **não** são registrados o header
+`Authorization`, cookies, JWT, senhas, o corpo da requisição nem a query string.
+
+---
+
+## 🔗 Tracing distribuído (OpenTelemetry)
+
+Cada requisição HTTP gera um trace. Componentes instrumentados:
+
+| Componente | Pacote | O que produz |
+|-----------|--------|--------------|
+| **ASP.NET Core** | `OpenTelemetry.Instrumentation.AspNetCore` | Span raiz da requisição, com rota, método, status e exceções |
+| **HttpClient** | `OpenTelemetry.Instrumentation.Http` | Span por chamada HTTP de saída |
+| **Entity Framework Core** | `OpenTelemetry.Instrumentation.EntityFrameworkCore` | Span por comando enviado ao banco, com o texto do SQL |
+| **Camada de Application** | `ActivitySource` própria (`FutureVet.Application`) | Span por operação de negócio |
+
+A instrumentação manual foi aplicada **apenas onde a automática não alcança**: a camada de
+Application fica entre o Controller (coberto pelo ASP.NET Core) e o banco (coberto pelo EF Core).
+Sem ela, o trace saltaria direto da requisição para o SQL.
+
+```
+HTTP GET /api/Usuario/{id}          ← instrumentação ASP.NET Core
+  └─ UsuarioService.GetByIdAsync    ← ActivitySource da Application
+       └─ SELECT ... FROM TB_USUARIO ← instrumentação EF Core
+```
+
+Os spans da Application carregam as tags `futurevet.entity`, `futurevet.entity.id` e
+`futurevet.found`. **Os valores dos parâmetros das queries não são capturados**, pois podem
+conter dados pessoais (e-mail, CPF, telefone).
+
+---
+
+# 🛡️ Tratamento de Erros
+
+Um `IExceptionHandler` global traduz as exceções conhecidas do domínio em respostas
+`application/problem+json` (RFC 9457). Nenhum stack trace chega ao cliente.
+
+| Exceção | Status | Título |
+|---------|--------|--------|
+| `NotFoundException` | **404** | Recurso não encontrado |
+| `DomainException` | **400** | Requisição inválida |
+| Qualquer outra | **500** | Erro interno do servidor (mensagem genérica) |
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+  "title": "Recurso não encontrado",
+  "status": 404,
+  "detail": "Usuário com o ID '3f2b...' não foi encontrado(a).",
+  "instance": "PUT /api/Usuario/3f2b...",
+  "traceId": "00-ef814089e92f8f296c2d8e082cb1bde5-ddae51a61068a6da-01",
+  "correlationId": "cb1c042c-5fa8-4918-b4d2-cc273a6dbbfb"
+}
+```
+
+Erros de negócio e 404 são registrados em **Warning**; falhas inesperadas em **Error**, com a
+exceção completa no log do servidor.
+
+---
+
+# 🧪 Testes
+
+```bash
+# Executa toda a suíte (unitários + integração)
+dotnet test
+```
+
+```bash
+# Executa com coleta de cobertura de código
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+O relatório em formato Cobertura é gravado em
+`tests/<projeto>/TestResults/<guid>/coverage.cobertura.xml`, via `coverlet.collector`.
+
+> Os testes **unitários** não dependem de nada externo. Os testes de **integração** exigem a
+> connection string do Oracle configurada — ver [passo 5](#5-configurar-o-oracle-usado-pelos-testes).
+
+## Estrutura
+
+```
+tests
+├── FutureVet.UnitTests
+│   ├── Common          # TestData: fábricas de dados válidos para o Arrange
+│   ├── Domain          # regras das entidades (Usuario, Pet, Vacina, Consulta)
+│   └── Application     # Application Services com repositórios mockados
+│
+└── FutureVet.IntegrationTests
+    ├── Fixtures        # CustomWebApplicationFactory (Oracle), ApiFixture, ApiTestData
+    ├── Endpoints       # CRUD completo dos 4 controllers via HTTP real
+    └── Observability   # health checks, correlation ID, métricas, tracing, erros, Swagger
+```
+
+## Testes unitários
+
+**xUnit + Moq**, cobrindo as camadas **Domain** e **Application**.
+
+* **Domain** — validações das entidades: e-mail sem `@`, senha com menos de 8 caracteres,
+  peso menor ou igual a zero, idade negativa, próxima dose anterior à aplicação, campos
+  obrigatórios vazios, e os *edge cases* dos limites (senha com exatamente 8 caracteres,
+  idade zero, próxima dose no mesmo dia da aplicação).
+* **Application** — casos de sucesso, de erro e de borda dos Application Services: criação
+  válida, busca existente e inexistente, atualização de entidade ausente
+  (`NotFoundException`), regra de domínio violada durante a atualização, exclusão, e coleções
+  vazias.
+
+Os mocks são usados **apenas para as dependências externas à unidade testada** — os
+repositórios. As regras de domínio são exercitadas de verdade, nunca simuladas. Os mocks usam
+`MockBehavior.Strict`, de modo que qualquer chamada não prevista falha o teste, e os
+comportamentos relevantes são verificados explicitamente:
+
+```csharp
+_repositoryMock.Verify(x => x.UpdateAsync(It.IsAny<Usuario>()), Times.Never);
+```
+
+## Testes de integração
+
+**`WebApplicationFactory<Program>`** (`Microsoft.AspNetCore.Mvc.Testing`) sobe a API em
+memória e os testes fazem **requisições HTTP reais** contra ela:
+
+```csharp
+var response = await _client.GetAsync("/api/Pet");
+```
+
+Cenários cobertos: `200` em listagens e buscas, `201` com header `Location` na criação,
+`204` em atualização e exclusão, `400` para payloads que violam regras de domínio e para
+parâmetros de rota mal formados, `404` para recursos inexistentes e rotas desconhecidas,
+`503` nos health checks quando uma dependência está fora do ar.
+
+### Banco de dados nos testes
+
+Os testes de integração rodam contra **Oracle** — o mesmo SGBD e o mesmo provider
+(`Oracle.EntityFrameworkCore`) usados em produção. **Nenhum banco substituto** (SQLite,
+InMemory ou mock de repositório) é utilizado: os testes exercitam os tipos, as constraints, os
+índices únicos e o SQL do Oracle de verdade, de modo que um comportamento específico do banco
+não passe despercebido.
+
+A `CustomWebApplicationFactory` troca o registro do `DbContext` feito no `Program.cs` pelo do
+banco de teste, cuja connection string vem de **User Secrets** ou de variável de ambiente —
+nunca de um arquivo versionado.
+
+**O schema não é criado nem apagado pelos testes.** Ele já existe, aplicado pelas migrations.
+Os testes apenas inserem e removem os próprios registros.
+
+#### Isolamento e limpeza dos dados
+
+Como o schema é compartilhado, cada teste monta o próprio cenário através dos endpoints reais
+(nunca inserindo direto no banco) e usa identificadores únicos, evitando colisão nos índices
+únicos de e-mail e CPF.
+
+Todo usuário criado pelos testes recebe um e-mail no domínio reservado
+**`@testes.futurevet.local`**, que não existe de verdade. Isso identifica os registros de teste
+sem ambiguidade e viabiliza a limpeza, feita pela `ApiFixture`:
+
+* **antes** da suíte, varrendo sobras de uma execução anterior que tenha sido interrompida;
+* **depois** da suíte, removendo tudo o que foi criado.
+
+Apagar o usuário é suficiente: as chaves estrangeiras foram criadas com `ON DELETE CASCADE`,
+então pets, vacinas e consultas vão junto. Ao final de uma execução, o schema volta ao estado
+em que estava.
+
+> **Atenção:** por rodarem contra um banco real, os testes de integração dependem da
+> disponibilidade do servidor Oracle e executam INSERT/UPDATE/DELETE de fato. Aponte-os para um
+> schema que você possa modificar livremente.
+
+### Serviços externos nos testes
+
+O ambiente `Testing` carrega `appsettings.Testing.json`, que deixa
+`HealthChecks:ExternalServices` vazio e `OpenTelemetry:OtlpEndpoint` em branco — **nenhuma
+telemetria e nenhuma chamada a API de terceiros sai da máquina durante os testes**. A única
+conexão externa é a do próprio Oracle, que é o banco sob teste.
+
+O `ExternalServiceHealthCheck` é exercitado contra `127.0.0.1:1`, onde nada escuta e a conexão
+é recusada pelo próprio sistema operacional. O cenário de banco fora do ar aponta para
+`127.0.0.1:1521`, também local — os dois testes de falha rodam sem depender de rede.
+
+## Padrão AAA
+
+Todos os testes são organizados em **Arrange / Act / Assert**, com as seções marcadas:
+
+```csharp
+[Fact]
+public async Task UpdateAsync_UsuarioNaoEncontrado_LancaNotFoundException()
+{
+    // Arrange
+    var idInexistente = Guid.NewGuid();
+
+    _repositoryMock
+        .Setup(x => x.GetByIdAsync(idInexistente))
+        .ReturnsAsync((Usuario?)null);
+
+    // Act
+    var excecao = await Record.ExceptionAsync(
+        () => _service.UpdateAsync(idInexistente, TestData.UpdateUsuarioRequestValido()));
+
+    // Assert
+    Assert.IsType<NotFoundException>(excecao);
+    _repositoryMock.Verify(x => x.UpdateAsync(It.IsAny<Usuario>()), Times.Never);
+}
+```
+
+## Nomenclatura
+
+Todos os testes seguem `MetodoTestado_Cenario_ResultadoEsperado`:
+
+```
+CreateAsync_DadosValidos_PersisteUsuarioERetornaResponse
+GetByIdAsync_UsuarioNaoEncontrado_RetornaNull
+UpdateAsync_NomeVazio_LancaDomainExceptionENaoPersiste
+HealthCheck_BancoIndisponivel_Retorna503ComStatusUnhealthy
+Post_EmailSemArroba_Retorna400ComProblemDetails
+```
+
+## Fixtures e Collection Fixtures
+
+| Recurso | Onde | Por quê |
+|---------|------|---------|
+| **`ICollectionFixture<ApiFixture>`** | Todas as classes de teste de endpoint e de observabilidade | Subir o host da API e abrir a conexão com o Oracle é caro. A collection fixture faz isso **uma única vez por execução**, e não a cada classe |
+| **`IClassFixture<UnavailableDatabaseFactory>`** | `HealthCheckComBancoIndisponivelTests` | Precisa de um host apontando para um **endereço Oracle onde nada escuta** — configuração diferente da compartilhada, e de interesse de uma única classe |
+| **`IClassFixture<ExternalServiceIndisponivelFactory>`** e **`<ExternalServiceOpcionalFactory>`** | `ExternalServiceHealthCheckTests` | Hosts com um serviço HTTP externo declarado em configuração, obrigatório e opcional |
+
+A `ApiFixture` implementa `IAsyncLifetime` e concentra todo o ciclo de vida da suíte:
+valida a conectividade com o Oracle antes do primeiro teste (uma falha aqui vira **uma**
+mensagem clara, em vez de dezenas de erros de conexão), expõe o `HttpClient` e a fábrica de
+cenários compartilhados, e **remove do banco todos os registros de teste ao final**.
+
+## Autenticação nos testes
+
+A FutureVet **não possui autenticação nem autorização** — não há JWT, ASP.NET Identity nem
+API Key em nenhum endpoint. Por isso não existem testes de `401` ou `403`: não haveria nada
+real a validar. Autenticação **não foi removida para facilitar os testes**; ela nunca existiu
+neste projeto. Caso seja adicionada em uma sprint futura, a `CustomWebApplicationFactory` já é
+o ponto natural para registrar um authentication handler de teste.
 
 ---
 
