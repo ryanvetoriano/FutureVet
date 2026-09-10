@@ -1,6 +1,8 @@
-﻿using FutureVet.Application.DTOs.Usuario;
+using FutureVet.Application.DTOs.Usuario;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Interfaces.Services;
+using FutureVet.Application.Observability;
+using FutureVet.Domain.Exceptions;
 
 namespace FutureVet.Application.Services;
 
@@ -15,14 +17,26 @@ public class UsuarioService : IUsuarioService
 
     public async Task<UsuarioResponse> CreateAsync(CreateUsuarioRequest request)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "UsuarioService.CreateAsync", "Usuario");
+
         var usuario = request.ToDomain();
         await _repository.AddAsync(usuario);
+
+        activity?.SetTag("futurevet.entity.id", usuario.Id);
+
         return UsuarioResponse.FromDomain(usuario);
     }
 
     public async Task<UsuarioResponse?> GetByIdAsync(Guid id)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "UsuarioService.GetByIdAsync", "Usuario", id);
+
         var usuario = await _repository.GetByIdAsync(id);
+
+        activity?.SetTag("futurevet.found", usuario != null);
+
         return usuario == null ? null : UsuarioResponse.FromDomain(usuario);
     }
 
@@ -46,9 +60,12 @@ public class UsuarioService : IUsuarioService
 
     public async Task UpdateAsync(Guid id, UpdateUsuarioRequest request)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "UsuarioService.UpdateAsync", "Usuario", id);
+
         var usuario = await _repository.GetByIdAsync(id);
         if (usuario == null)
-            throw new Exception("Usuário não encontrado.");
+            throw NotFoundException.For("Usuário", id);
 
         usuario.AtualizarNome(request.Nome);
         usuario.AtualizarTelefone(request.Telefone);
@@ -57,8 +74,12 @@ public class UsuarioService : IUsuarioService
 
     public async Task DeleteAsync(Guid id)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "UsuarioService.DeleteAsync", "Usuario", id);
+
         var usuario = await _repository.GetByIdAsync(id);
         if (usuario == null) return;
+
         await _repository.DeleteAsync(usuario);
     }
 }

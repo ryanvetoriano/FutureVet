@@ -1,7 +1,9 @@
-﻿using FutureVet.Application.DTOs.Pet;
+using FutureVet.Application.DTOs.Pet;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Interfaces.Services;
+using FutureVet.Application.Observability;
 using FutureVet.Domain.Enums;
+using FutureVet.Domain.Exceptions;
 
 namespace FutureVet.Application.Services;
 
@@ -16,8 +18,14 @@ public class PetService : IPetService
 
     public async Task<PetResponse> CreateAsync(CreatePetRequest request)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "PetService.CreateAsync", "Pet");
+
         var pet = request.ToDomain();
         await _repository.AddAsync(pet);
+
+        activity?.SetTag("futurevet.entity.id", pet.Id);
+
         return PetResponse.FromDomain(pet);
     }
 
@@ -29,7 +37,13 @@ public class PetService : IPetService
 
     public async Task<PetResponse?> GetByIdAsync(Guid id)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "PetService.GetByIdAsync", "Pet", id);
+
         var pet = await _repository.GetByIdAsync(id);
+
+        activity?.SetTag("futurevet.found", pet != null);
+
         return pet == null ? null : PetResponse.FromDomain(pet);
     }
 
@@ -53,8 +67,12 @@ public class PetService : IPetService
 
     public async Task UpdateAsync(Guid id, UpdatePetRequest request)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "PetService.UpdateAsync", "Pet", id);
+
         var pet = await _repository.GetByIdAsync(id);
-        if (pet == null) return;
+        if (pet == null)
+            throw NotFoundException.For("Pet", id);
 
         pet.AtualizarNome(request.NomePet);
         pet.AtualizarRaca(request.Raca);
@@ -66,8 +84,12 @@ public class PetService : IPetService
 
     public async Task DeleteAsync(Guid id)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "PetService.DeleteAsync", "Pet", id);
+
         var pet = await _repository.GetByIdAsync(id);
         if (pet == null) return;
+
         await _repository.DeleteAsync(pet);
     }
 }

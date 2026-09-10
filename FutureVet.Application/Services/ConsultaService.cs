@@ -1,6 +1,8 @@
-﻿using FutureVet.Application.DTOs.Consulta;
+using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Interfaces.Services;
+using FutureVet.Application.Observability;
+using FutureVet.Domain.Exceptions;
 
 namespace FutureVet.Application.Services;
 
@@ -15,14 +17,26 @@ public class ConsultaService : IConsultaService
 
     public async Task<ConsultaResponse> CreateAsync(CreateConsultaRequest request)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "ConsultaService.CreateAsync", "Consulta");
+
         var consulta = request.ToDomain();
         await _repository.AddAsync(consulta);
+
+        activity?.SetTag("futurevet.entity.id", consulta.Id);
+
         return ConsultaResponse.FromDomain(consulta);
     }
 
     public async Task<ConsultaResponse?> GetByIdAsync(Guid id)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "ConsultaService.GetByIdAsync", "Consulta", id);
+
         var consulta = await _repository.GetByIdAsync(id);
+
+        activity?.SetTag("futurevet.found", consulta != null);
+
         return consulta == null ? null : ConsultaResponse.FromDomain(consulta);
     }
 
@@ -52,9 +66,12 @@ public class ConsultaService : IConsultaService
 
     public async Task UpdateAsync(Guid id, UpdateConsultaRequest request)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "ConsultaService.UpdateAsync", "Consulta", id);
+
         var consulta = await _repository.GetByIdAsync(id);
         if (consulta == null)
-            throw new Exception("Consulta não encontrada.");
+            throw NotFoundException.For("Consulta", id);
 
         consulta.DefinirData(request.Data);
         consulta.DefinirHora(request.Hora);
@@ -64,8 +81,12 @@ public class ConsultaService : IConsultaService
 
     public async Task DeleteAsync(Guid id)
     {
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "ConsultaService.DeleteAsync", "Consulta", id);
+
         var consulta = await _repository.GetByIdAsync(id);
         if (consulta == null) return;
+
         await _repository.DeleteAsync(consulta);
     }
 }
