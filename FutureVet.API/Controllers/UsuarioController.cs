@@ -90,6 +90,7 @@ public class UsuarioController : ControllerBase
 
     /// <summary>Atualiza nome e telefone de um usuário.</summary>
     /// <param name="id">ID do usuário.</param>
+    /// <param name="request">Novos dados do usuário.</param>
     /// <response code="204">Atualizado com sucesso.</response>
     /// <response code="400">Dados inválidos.</response>
     /// <response code="404">Usuário não encontrado.</response>
@@ -101,15 +102,10 @@ public class UsuarioController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        try
-        {
-            await _service.UpdateAsync(id, request);
-            return NoContent();
-        }
-        catch (Exception ex) when (ex.Message.Contains("não encontrado"))
-        {
-            return NotFound(ex.Message);
-        }
+        // NotFoundException e DomainException são convertidas em 404 e 400
+        // pelo GlobalExceptionHandler.
+        await _service.UpdateAsync(id, request);
+        return NoContent();
     }
 
     /// <summary>Remove um usuário.</summary>

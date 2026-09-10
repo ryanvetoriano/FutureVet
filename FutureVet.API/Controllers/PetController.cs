@@ -99,6 +99,7 @@ public class PetController : ControllerBase
 
     /// <summary>Atualiza os dados de um pet.</summary>
     /// <param name="id">ID do pet.</param>
+    /// <param name="request">Novos dados do pet.</param>
     /// <response code="204">Atualizado com sucesso.</response>
     /// <response code="400">Dados inválidos.</response>
     /// <response code="404">Pet não encontrado.</response>

@@ -82,6 +82,7 @@ public class VacinaController : ControllerBase
 
     /// <summary>Atualiza os dados de uma vacina.</summary>
     /// <param name="id">ID da vacina.</param>
+    /// <param name="request">Novos dados da vacina.</param>
     /// <response code="204">Atualizado com sucesso.</response>
     /// <response code="400">Dados inválidos.</response>
     /// <response code="404">Vacina não encontrada.</response>
@@ -93,15 +94,10 @@ public class VacinaController : ControllerBase
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        try
-        {
-            await _service.UpdateAsync(id, request);
-            return NoContent();
-        }
-        catch (Exception ex) when (ex.Message.Contains("não encontrada"))
-        {
-            return NotFound(ex.Message);
-        }
+        // NotFoundException e DomainException são convertidas em 404 e 400
+        // pelo GlobalExceptionHandler.
+        await _service.UpdateAsync(id, request);
+        return NoContent();
     }
 
     /// <summary>Remove uma vacina.</summary>
