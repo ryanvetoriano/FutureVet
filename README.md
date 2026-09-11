@@ -609,14 +609,18 @@ Implementados com `Microsoft.Extensions.Diagnostics.HealthChecks`.
 |------|--------|-------------|
 | `api` | `live`, `ready` | O processo está em execução e servindo requisições |
 | `database` | `ready`, `db` | Conectividade **real** com o Oracle via `DbContext.Database.CanConnectAsync()` (abre uma conexão de fato); timeout de 10 s |
-| *(configurável)* | `ready`, `external` | Dependências HTTP externas declaradas em `HealthChecks:ExternalServices`, consultadas com `IHttpClientFactory` e timeout próprio |
+| `conectividade-externa` | `ready`, `external` | Dependência HTTP externa declarada em `HealthChecks:ExternalServices`, consultada com `IHttpClientFactory` e timeout próprio. Mais entradas podem ser adicionadas por configuração |
 
 > O provider de banco é detectado a partir do `DbContext` já configurado. A aplicação usa
 > **Oracle** exclusivamente — nenhum check de MongoDB é registrado.
 
 ### Serviços externos
 
-A FutureVet **não consome nenhuma API de terceiros** no momento, então a seção vem vazia.
+O check de dependências HTTP externas é dirigido por configuração. Vem habilitado com uma
+verificação de **conectividade externa**, marcada como `Optional` — a indisponibilidade
+resulta em `Degraded` e a API continua recebendo tráfego, já que a FutureVet não depende de
+nenhuma API de terceiros para funcionar.
+
 Qualquer integração futura passa a ser monitorada apenas adicionando uma entrada em
 `appsettings.json`, sem alteração de código:
 
@@ -624,6 +628,12 @@ Qualquer integração futura passa a ser monitorada apenas adicionando uma entra
 {
   "HealthChecks": {
     "ExternalServices": [
+      {
+        "Name": "conectividade-externa",
+        "Url": "https://www.fiap.com.br",
+        "TimeoutSeconds": 5,
+        "Optional": true
+      },
       {
         "Name": "gateway-pagamentos",
         "Url": "https://exemplo.com/health",
@@ -658,6 +668,13 @@ tráfego) em vez de `Unhealthy`. Nunca inclua credenciais ou tokens na `Url`.
       "description": "Conexão com o banco de dados estabelecida (Oracle.EntityFrameworkCore).",
       "duration": "00:00:00.0051200",
       "tags": [ "ready", "db" ]
+    },
+    {
+      "name": "conectividade-externa",
+      "status": "Healthy",
+      "description": "Serviço conectividade-externa respondeu 200.",
+      "duration": "00:00:00.2501589",
+      "tags": [ "ready", "external" ]
     }
   ]
 }

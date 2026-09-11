@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Diagnostics.HealthChecks;
+﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace FutureVet.API.HealthChecks;
 
@@ -79,7 +79,7 @@ public sealed class ExternalServiceHealthCheck : IHealthCheck
             if (response.IsSuccessStatusCode)
             {
                 return HealthCheckResult.Healthy(
-                    $"Serviço '{_options.Name}' respondeu {(int)response.StatusCode}.");
+                    $"Serviço {_options.Name} respondeu {(int)response.StatusCode}.");
             }
 
             _logger.LogWarning(
@@ -89,7 +89,7 @@ public sealed class ExternalServiceHealthCheck : IHealthCheck
 
             return new HealthCheckResult(
                 falha,
-                $"Serviço '{_options.Name}' respondeu {(int)response.StatusCode}.");
+                $"Serviço {_options.Name} respondeu {(int)response.StatusCode}.");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -100,7 +100,7 @@ public sealed class ExternalServiceHealthCheck : IHealthCheck
 
             return new HealthCheckResult(
                 falha,
-                $"Serviço '{_options.Name}' excedeu o timeout de {_options.TimeoutSeconds}s.");
+                $"Serviço {_options.Name} excedeu o timeout de {_options.TimeoutSeconds}s.");
         }
         catch (HttpRequestException ex)
         {
@@ -111,7 +111,7 @@ public sealed class ExternalServiceHealthCheck : IHealthCheck
 
             return new HealthCheckResult(
                 falha,
-                $"Serviço '{_options.Name}' inacessível.");
+                $"Serviço {_options.Name} inacessível.");
         }
     }
 }
