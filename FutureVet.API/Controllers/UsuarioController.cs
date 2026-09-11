@@ -1,5 +1,6 @@
 ﻿using FutureVet.Application.DTOs.Usuario;
 using FutureVet.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FutureVet.API.Controllers;
@@ -77,7 +78,10 @@ public class UsuarioController : ControllerBase
     /// <summary>Cria um novo usuário.</summary>
     /// <response code="201">Usuário criado com sucesso.</response>
     /// <response code="400">Dados inválidos.</response>
+    // Cadastro é público por ser o ponto de entrada: exigir token aqui tornaria
+    // impossível criar o primeiro usuário e, depois, autenticar-se.
     [HttpPost]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult> Create(CreateUsuarioRequest request)
@@ -95,6 +99,8 @@ public class UsuarioController : ControllerBase
     /// <response code="400">Dados inválidos.</response>
     /// <response code="404">Usuário não encontrado.</response>
     [HttpPut("{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -113,6 +119,8 @@ public class UsuarioController : ControllerBase
     /// <response code="204">Removido com sucesso.</response>
     /// <response code="404">Usuário não encontrado.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(Guid id)

@@ -23,6 +23,7 @@ Além das funcionalidades de negócio, a aplicação foi preparada para operar e
 * 📈 **Métricas** expostas em `/metrics` no formato Prometheus
 * 🧪 **Testes unitários e de integração** em xUnit, organizados no padrão AAA
 * 🛡️ **Tratamento global de erros** padronizado em ProblemDetails (RFC 9457)
+* 🔐 **Autenticação JWT** protegendo as operações de escrita
 
 ---
 
@@ -56,6 +57,7 @@ FutureVet
 │
 ├── FutureVet.API
 │   ├── Controllers
+│   ├── Auth               # JwtOptions e emissão do token JWT
 │   ├── Errors             # tratamento global de exceções (ProblemDetails)
 │   ├── Extensions         # AddApplicationHealthChecks, AddSerilogLogging, AddOpenTelemetryConfiguration
 │   ├── HealthChecks       # checks de banco e de serviços externos + writer JSON
@@ -172,6 +174,7 @@ Relacionamento:
 * Domain-Driven Design (DDD)
 * Oracle Database
 * Swagger / OpenAPI
+* JWT Bearer (autenticação)
 * Serilog (logging estruturado)
 * OpenTelemetry (tracing distribuído e métricas)
 * Prometheus (formato de exposição das métricas)
@@ -191,6 +194,7 @@ Algumas regras implementadas no domínio:
 * idade do pet deve ser **maior ou igual a zero**
 * próxima dose da vacina não pode ser **anterior à data de aplicação**
 * hora da consulta deve estar no formato **HH:mm**
+* operações de **escrita** exigem um token JWT válido; leitura e cadastro são públicos
 
 ---
 
@@ -250,11 +254,25 @@ Crie ou edite o arquivo `FutureVet.API/appsettings.Development.json` com suas cr
 > dotnet user-secrets set "ConnectionStrings:OracleConnection" "..." --project FutureVet.API
 > ```
 
+### Chave de assinatura do JWT
+
+A API **não sobe** sem ela. Gere uma chave aleatória de 32+ bytes e guarde em User Secrets:
+
+```bash
+dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -base64 48)" --project FutureVet.API
+```
+
+No Windows PowerShell, sem o `openssl`:
+
+```bash
+dotnet user-secrets set "Jwt:SigningKey" "$([Convert]::ToBase64String((1..48|%{Get-Random -Max 256})))" --project FutureVet.API
+```
+
 ### Arquivos de configuração
 
 | Arquivo | Uso |
 |---------|-----|
-| `appsettings.json` | Base: Serilog (console + arquivo), OpenTelemetry, health checks. Sem segredos |
+| `appsettings.json` | Base: Serilog (console + arquivo), OpenTelemetry, health checks e JWT (Issuer/Audience/expiração). **Sem segredos** |
 | `appsettings.Development.json` | Credenciais locais. **Não versionado** |
 | `appsettings.Testing.json` | Ambiente usado pelos testes de integração: sem dependências externas |
 
@@ -326,7 +344,73 @@ dotnet test --collect:"XPlat Code Coverage"
 
 ---
 
+# 🔐 Autenticação
+
+A API usa **JWT Bearer**. Fluxo:
+
+1. Cadastre-se em `POST /api/usuario` (público);
+2. Autentique-se em `POST /api/auth/login` com e-mail e senha;
+3. Envie o token nas operações de escrita: `Authorization: Bearer <token>`.
+
+No Swagger, use o botão **Authorize** e cole apenas o token.
+
+### O que é público e o que é protegido
+
+| Operação | Acesso |
+|---|---|
+| `POST /api/auth/login` | Público |
+| `POST /api/usuario` (cadastro) | Público — é o ponto de entrada, sem ele não haveria como obter um token |
+| **Todos os `GET`** | Público (leitura) |
+| `PUT` e `DELETE` de usuário | **Requer token** |
+| `POST`, `PUT` e `DELETE` de pet, vacina e consulta | **Requer token** |
+| `/health`, `/health/live`, `/health/ready`, `/metrics` | Público — sondas e o Prometheus não enviam token |
+
+### Exemplo
+
+```bash
+curl -X POST http://localhost:5189/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"joao@email.com\",\"senha\":\"senha123\"}"
+```
+
+Resposta:
+
+```json
+{
+  "id": "3f2b...",
+  "nome": "João Silva",
+  "email": "joao@email.com",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiraEm": "2026-09-11T18:30:00Z"
+}
+```
+
+### Configuração da chave de assinatura
+
+A chave **nunca é versionada**. O `appsettings.json` traz apenas `Issuer`, `Audience` e
+`ExpiracaoEmMinutos`. Defina a chave (mínimo de 32 bytes) por User Secrets:
+
+```bash
+dotnet user-secrets set "Jwt:SigningKey" "<chave aleatoria de 32+ bytes>" --project FutureVet.API
+```
+
+ou pela variável de ambiente `Jwt__SigningKey`. Sem ela, a API **não sobe** — falha na
+inicialização com uma mensagem explicando o que configurar, em vez de emitir tokens inseguros.
+
+> ⚠️ **Limitação conhecida:** a senha do usuário é armazenada em **texto puro**, como
+> modelado nas sprints anteriores. O login faz a comparação em tempo constante
+> (`Usuario.SenhaCorresponde`), mas a evolução necessária é guardar apenas o hash
+> (PBKDF2 ou BCrypt). Isso exigiria uma migration e a reescrita das senhas existentes.
+
+---
+
 # 📋 Rotas da API
+
+> 🔒 = exige `Authorization: Bearer <token>`
+
+### Auth — `/api/auth`
+
+| Método | Rota | Descrição | Status |
+|--------|------|-----------|--------|
+| POST | `/api/auth/login` | Autentica e devolve um token JWT | 200 / 400 / 401 |
 
 ### Usuario — `/api/usuario`
 
@@ -336,9 +420,9 @@ dotnet test --collect:"XPlat Code Coverage"
 | GET | `/api/usuario/{id}` | Busca usuário por ID | 200 / 404 |
 | GET | `/api/usuario/email/{email}` | Busca usuário por e-mail | 200 / 400 / 404 |
 | GET | `/api/usuario/nome/{nome}` | Busca usuários por nome (parcial) | 200 / 400 |
-| POST | `/api/usuario` | Cria um novo usuário | 201 / 400 |
-| PUT | `/api/usuario/{id}` | Atualiza nome e telefone | 204 / 400 / 404 |
-| DELETE | `/api/usuario/{id}` | Remove um usuário | 204 / 404 |
+| POST | `/api/usuario` | Cria um novo usuário (cadastro público) | 201 / 400 |
+| PUT | `/api/usuario/{id}` | 🔒 Atualiza nome e telefone | 204 / 400 / 401 / 404 |
+| DELETE | `/api/usuario/{id}` | 🔒 Remove um usuário | 204 / 401 / 404 |
 
 ### Pet — `/api/pet`
 
@@ -349,9 +433,9 @@ dotnet test --collect:"XPlat Code Coverage"
 | GET | `/api/pet/nome/{nome}` | Busca pets por nome (parcial) | 200 / 400 |
 | GET | `/api/pet/especie/{especie}` | Busca pets por espécie (1=Cão, 2=Gato, 3=Coelho, 4=Outro) | 200 / 400 |
 | GET | `/api/pet/usuario/{usuarioId}` | Lista todos os pets de um usuário | 200 |
-| POST | `/api/pet` | Cria um novo pet | 201 / 400 |
-| PUT | `/api/pet/{id}` | Atualiza dados do pet | 204 / 400 / 404 |
-| DELETE | `/api/pet/{id}` | Remove um pet | 204 / 404 |
+| POST | `/api/pet` | 🔒 Cria um novo pet | 201 / 400 / 401 |
+| PUT | `/api/pet/{id}` | 🔒 Atualiza dados do pet | 204 / 400 / 401 / 404 |
+| DELETE | `/api/pet/{id}` | 🔒 Remove um pet | 204 / 401 / 404 |
 
 ### Vacina — `/api/vacina`
 
@@ -361,9 +445,9 @@ dotnet test --collect:"XPlat Code Coverage"
 | GET | `/api/vacina/{id}` | Busca vacina por ID | 200 / 404 |
 | GET | `/api/vacina/pet/{petId}` | Lista vacinas de um pet | 200 |
 | GET | `/api/vacina/proxima-dose/{data}` | Vacinas com próxima dose até a data (yyyy-MM-dd) | 200 / 400 |
-| POST | `/api/vacina` | Registra uma nova vacina | 201 / 400 |
-| PUT | `/api/vacina/{id}` | Atualiza próxima dose e local | 204 / 400 / 404 |
-| DELETE | `/api/vacina/{id}` | Remove uma vacina | 204 / 404 |
+| POST | `/api/vacina` | 🔒 Registra uma nova vacina | 201 / 400 / 401 |
+| PUT | `/api/vacina/{id}` | 🔒 Atualiza próxima dose e local | 204 / 400 / 401 / 404 |
+| DELETE | `/api/vacina/{id}` | 🔒 Remove uma vacina | 204 / 401 / 404 |
 
 ### Consulta — `/api/consulta`
 
@@ -374,9 +458,9 @@ dotnet test --collect:"XPlat Code Coverage"
 | GET | `/api/consulta/pet/{petId}` | Lista consultas de um pet | 200 |
 | GET | `/api/consulta/data/{data}` | Lista consultas por data (yyyy-MM-dd) | 200 / 400 |
 | GET | `/api/consulta/tipo/{tipo}` | Lista consultas por tipo | 200 / 400 |
-| POST | `/api/consulta` | Agenda uma nova consulta | 201 / 400 |
-| PUT | `/api/consulta/{id}` | Atualiza dados da consulta | 204 / 400 / 404 |
-| DELETE | `/api/consulta/{id}` | Remove uma consulta | 204 / 404 |
+| POST | `/api/consulta` | 🔒 Agenda uma nova consulta | 201 / 400 / 401 |
+| PUT | `/api/consulta/{id}` | 🔒 Atualiza dados da consulta | 204 / 400 / 401 / 404 |
+| DELETE | `/api/consulta/{id}` | 🔒 Remove uma consulta | 204 / 401 / 404 |
 
 ---
 
@@ -843,13 +927,28 @@ valida a conectividade com o Oracle antes do primeiro teste (uma falha aqui vira
 mensagem clara, em vez de dezenas de erros de conexão), expõe o `HttpClient` e a fábrica de
 cenários compartilhados, e **remove do banco todos os registros de teste ao final**.
 
-## Autenticação nos testes
+## Autenticação e autorização nos testes
 
-A FutureVet **não possui autenticação nem autorização** — não há JWT, ASP.NET Identity nem
-API Key em nenhum endpoint. Por isso não existem testes de `401` ou `403`: não haveria nada
-real a validar. Autenticação **não foi removida para facilitar os testes**; ela nunca existiu
-neste projeto. Caso seja adicionada em uma sprint futura, a `CustomWebApplicationFactory` já é
-o ponto natural para registrar um authentication handler de teste.
+A API usa **JWT Bearer**. Os testes de integração cobrem os dois lados:
+
+| Cenário | Esperado | Teste |
+|---|---|---|
+| `POST /api/Auth/login` com credenciais válidas | **200** + token JWT | `Login_CredenciaisValidas_Retorna200ComTokenJwt` |
+| Login com senha incorreta | **401** | `Login_SenhaIncorreta_Retorna401` |
+| Login com e-mail não cadastrado | **401**, resposta idêntica à de senha errada | `Login_EmailNaoCadastradoOuSenhaErrada_RetornamAMesmaResposta` |
+| Endpoint protegido **sem** token | **401** | `Post_SemAutenticacao_Retorna401`, `Put_...`, `Delete_...` |
+| Endpoint protegido com token **inválido** | **401** | `Post_ComTokenInvalido_Retorna401` |
+| Endpoint protegido com token **válido** | **201** | `Post_ComAutenticacaoValida_Retorna201` |
+| Leitura sem token | **200** (é pública) | `Get_SemAutenticacao_Retorna200PorqueLeituraEPublica` |
+| `/health` e `/metrics` sem token | **200** | `HealthChecksEMetricas_SemAutenticacao_ContinuamAcessiveis` |
+
+**A autenticação não foi enfraquecida para os testes.** Não existe handler de teste nem
+bypass: a `ApiFixture` cria um usuário pelo endpoint público de cadastro, chama
+`POST /api/Auth/login` e passa a enviar o token real no client compartilhado. O JWT é
+assinado e validado pelo mesmo pipeline de produção; só a chave é diferente, gerada em
+memória a cada execução (ver `CustomWebApplicationFactory`).
+
+Os testes de `401` usam um `HttpClient` próprio, sem token.
 
 ---
 
@@ -932,6 +1031,29 @@ o status (`INF` para 200, `WRN` para 404):
 
 ---
 
+## Sprint 3 — Autenticação
+
+Swagger com o botão **Authorize** e o cadeado marcando apenas as operações protegidas —
+`POST`, `PUT` e `DELETE`. `GET` e `POST /api/Auth/login` aparecem sem cadeado porque são
+públicos, o que corresponde ao comportamento real da API:
+
+![Swagger com autenticação](docs/images/swagger-auth.png)
+
+Fluxo completo verificado contra o Oracle, via `curl`/PowerShell:
+
+```text
+1) POST /api/usuario        (cadastro, publico)      -> HTTP 201
+2) POST /api/pet            SEM token                -> HTTP 401
+3) POST /api/auth/login     senha ERRADA             -> HTTP 401
+4) POST /api/auth/login     credenciais corretas     -> HTTP 200  (JWT com 3 segmentos)
+   corpo da resposta contem a senha?                 -> False
+5) POST /api/pet            COM token                -> HTTP 201
+6) GET  /api/pet            SEM token (leitura)      -> HTTP 200
+7) DELETE /api/usuario/{id} COM token                -> HTTP 204
+```
+
+---
+
 ## Sprint 3 — Testes automatizados
 
 Saída real de `dotnet test`, com os testes de integração rodando contra o Oracle:
@@ -941,10 +1063,10 @@ Execução de teste para tests/FutureVet.UnitTests/bin/Debug/net10.0/FutureVet.U
 Execução de teste para tests/FutureVet.IntegrationTests/bin/Debug/net10.0/FutureVet.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
 
 Aprovado!  - Com falha: 0, Aprovado: 95, Ignorado: 0, Total: 95, Duracao: 598 ms - FutureVet.UnitTests.dll (net10.0)
-Aprovado!  - Com falha: 0, Aprovado: 93, Ignorado: 0, Total: 93, Duracao: 13 s  - FutureVet.IntegrationTests.dll (net10.0)
+Aprovado!  - Com falha: 0, Aprovado: 111, Ignorado: 0, Total: 111, Duracao: 26 s - FutureVet.IntegrationTests.dll (net10.0)
 ```
 
-**188 testes, 0 falhas, 0 ignorados.**
+**206 testes, 0 falhas, 0 ignorados.**
 
 Cobertura por camada, coletada com `dotnet test --collect:"XPlat Code Coverage"`:
 

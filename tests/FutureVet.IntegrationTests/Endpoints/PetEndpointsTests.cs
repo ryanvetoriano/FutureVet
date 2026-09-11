@@ -126,6 +126,44 @@ public class PetEndpointsTests
     }
 
     [Fact]
+    public async Task GetByNome_NomeCadastrado_Retorna200ComOsPetsCorrespondentes()
+    {
+        // Arrange
+        var pet = await _dados.CriarPetAsync();
+
+        // Act
+        var response = await _client.GetAsync($"/api/Pet/nome/{Uri.EscapeDataString(pet.NomePet)}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var pets = await response.Content
+            .ReadFromJsonAsync<List<PetResponse>>(ApiJson.Options);
+
+        Assert.NotNull(pets);
+        Assert.Contains(pets, p => p.Id == pet.Id);
+    }
+
+    [Fact]
+    public async Task GetByNome_NomeSemCorrespondencia_Retorna200ComListaVazia()
+    {
+        // Arrange
+        var nomeInexistente = $"NaoExiste{Guid.NewGuid():N}";
+
+        // Act
+        var response = await _client.GetAsync($"/api/Pet/nome/{nomeInexistente}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var pets = await response.Content
+            .ReadFromJsonAsync<List<PetResponse>>(ApiJson.Options);
+
+        Assert.NotNull(pets);
+        Assert.Empty(pets);
+    }
+
+    [Fact]
     public async Task GetByEspecie_EspecieForaDoEnum_Retorna400()
     {
         // Arrange

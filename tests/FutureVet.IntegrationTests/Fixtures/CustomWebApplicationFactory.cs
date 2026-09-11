@@ -32,9 +32,20 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     /// </summary>
     protected virtual string ConnectionString => TestOracleSettings.ObterConnectionString();
 
+    /// <summary>
+    /// Chave de assinatura exclusiva desta execução, gerada em memória. Os testes nunca
+    /// dependem — nem tomam conhecimento — da chave real de desenvolvimento ou de produção.
+    /// </summary>
+    private static readonly string ChaveDeTeste =
+        Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48));
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        // User Secrets só são carregados no ambiente Development; no ambiente Testing a
+        // chave precisa vir daqui, senão a validação do JwtOptions barra a inicialização.
+        builder.UseSetting("Jwt:SigningKey", ChaveDeTeste);
 
         builder.ConfigureServices(services =>
         {

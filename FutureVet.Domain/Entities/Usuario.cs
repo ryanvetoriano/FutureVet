@@ -89,6 +89,27 @@ public class Usuario : BaseEntity
     }
 
 
+    /// <summary>
+    /// Confere a senha informada na autenticação.
+    /// </summary>
+    /// <remarks>
+    /// A comparação é feita em tempo fixo para não vazar, pelo tempo de resposta, quantos
+    /// caracteres iniciais estavam corretos.
+    /// <para><b>Limitação conhecida:</b> a senha é armazenada em texto puro, como definido
+    /// nas sprints anteriores. Uma evolução necessária é guardar apenas o hash
+    /// (PBKDF2/BCrypt) e comparar o hash aqui.</para>
+    /// </remarks>
+    public bool SenhaCorresponde(string? senha)
+    {
+        if (string.IsNullOrEmpty(senha) || string.IsNullOrEmpty(Senha))
+            return false;
+
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(senha),
+            System.Text.Encoding.UTF8.GetBytes(Senha));
+    }
+
+
     public void DefinirCpf(
         string cpf)
     {

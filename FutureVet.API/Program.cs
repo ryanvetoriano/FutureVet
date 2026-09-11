@@ -1,4 +1,5 @@
-using System.Reflection;
+﻿using System.Reflection;
+using FutureVet.API.Auth;
 using FutureVet.API.Errors;
 using FutureVet.API.Extensions;
 using FutureVet.API.Middleware;
@@ -49,7 +50,12 @@ try
         var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
         if (File.Exists(xmlPath))
             options.IncludeXmlComments(xmlPath);
+
+        options.AddJwtSecurityDefinition();
     });
+
+    // ---------- Autenticacao ----------
+    builder.Services.AddJwtAuthentication(builder.Configuration);
 
     // ---------- Tratamento global de erros ----------
     builder.Services.AddProblemDetails();
@@ -71,6 +77,7 @@ try
     builder.Services.AddScoped<IPetService, PetService>();
     builder.Services.AddScoped<IVacinaService, VacinaService>();
     builder.Services.AddScoped<IConsultaService, ConsultaService>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
 
     // ---------- Observabilidade: health checks, tracing e métricas ----------
     builder.Services.AddApplicationHealthChecks(builder.Configuration);
@@ -95,6 +102,9 @@ try
     app.UseHttpsRedirection();
 
     app.UseMetricsEndpoint();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapControllers();
     app.MapApplicationHealthChecks();

@@ -1,4 +1,4 @@
-using FutureVet.Application.Observability;
+﻿using FutureVet.Application.Observability;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -66,7 +66,15 @@ public static class OpenTelemetryExtensions
                     .AddHttpClientInstrumentation()
                     // GC, threads e exceções do processo.
                     .AddRuntimeInstrumentation()
-                    .AddPrometheusExporter();
+                    .AddPrometheusExporter(prometheus =>
+                    {
+                        // Por padrão o exporter guarda a resposta do scrape por 300 ms e a
+                        // reaproveita. Isso faz uma coleta logo após um pico de tráfego
+                        // devolver números defasados. Zerando o cache, cada scrape coleta o
+                        // estado atual — o custo é irrelevante no volume de scrape do
+                        // Prometheus (a cada 15 s) e o comportamento fica determinístico.
+                        prometheus.ScrapeResponseCacheDurationMilliseconds = 0;
+                    });
 
                 if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     metrics.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));

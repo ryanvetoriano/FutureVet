@@ -1,6 +1,7 @@
 ﻿using FutureVet.Application.DTOs.Pet;
 using FutureVet.Application.Interfaces.Services;
 using FutureVet.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FutureVet.API.Controllers;
@@ -87,6 +88,8 @@ public class PetController : ControllerBase
     /// <response code="201">Pet criado com sucesso.</response>
     /// <response code="400">Dados inválidos.</response>
     [HttpPost]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(PetResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult> Create(CreatePetRequest request)
@@ -104,6 +107,8 @@ public class PetController : ControllerBase
     /// <response code="400">Dados inválidos.</response>
     /// <response code="404">Pet não encontrado.</response>
     [HttpPut("{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -123,6 +128,8 @@ public class PetController : ControllerBase
     /// <response code="204">Removido com sucesso.</response>
     /// <response code="404">Pet não encontrado.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(Guid id)

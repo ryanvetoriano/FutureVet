@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using FutureVet.Application.DTOs.Auth;
 using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.DTOs.Pet;
 using FutureVet.Application.DTOs.Usuario;
@@ -40,6 +42,12 @@ public sealed class ApiTestData
     /// <summary>Domínio reservado aos registros criados pelos testes.</summary>
     public const string DominioDeTeste = "testes.futurevet.local";
 
+    /// <summary>
+    /// Senha usada em todos os usuários de teste, para que eles possam se autenticar.
+    /// Só existe no banco de teste, em registros descartáveis.
+    /// </summary>
+    public const string SenhaPadrao = "SenhaSegura123";
+
     private readonly HttpClient _client;
     private readonly ConcurrentBag<Guid> _usuariosCriados = [];
 
@@ -55,7 +63,7 @@ public sealed class ApiTestData
         var request = new CreateUsuarioRequest(
             $"{prefixoNome ?? "Usuário"} {sufixo}",
             EmailDeTeste(sufixo),
-            "SenhaSegura123",
+            SenhaPadrao,
             GerarCpf(),
             "11999998888");
 
@@ -120,6 +128,36 @@ public sealed class ApiTestData
         response.EnsureSuccessStatusCode();
 
         return (await response.Content.ReadFromJsonAsync<ConsultaResponse>(ApiJson.Options))!;
+    }
+
+    /// <summary>
+    /// Autentica um usuário recém-criado e devolve o token JWT emitido pela API.
+    /// </summary>
+    public async Task<LoginResponse> AutenticarAsync(UsuarioResponse? usuario = null)
+    {
+        var alvo = usuario ?? await CriarUsuarioAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/Auth/login",
+            new LoginRequest(alvo.Email, SenhaPadrao),
+            ApiJson.Options);
+
+        response.EnsureSuccessStatusCode();
+
+        return (await response.Content.ReadFromJsonAsync<LoginResponse>(ApiJson.Options))!;
+    }
+
+    /// <summary>
+    /// Passa a enviar o token em todas as requisições do client compartilhado.
+    /// Chamado uma vez pela <see cref="ApiFixture"/>, já que os endpoints de escrita
+    /// exigem autenticação.
+    /// </summary>
+    public async Task AutenticarClientAsync()
+    {
+        var login = await AutenticarAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", login.Token);
     }
 
     /// <summary>Registra um usuário criado fora dos helpers para que ele também seja limpo.</summary>

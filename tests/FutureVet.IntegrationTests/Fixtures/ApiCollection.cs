@@ -37,6 +37,10 @@ public sealed class ApiFixture : IAsyncLifetime
 
         // Varre sobras de uma execução anterior que tenha sido interrompida.
         await _dados.LimparAsync(_factory);
+
+        // Os endpoints de escrita exigem JWT; o client compartilhado já sai autenticado.
+        // Os testes de 401 usam um client próprio, sem token.
+        await _dados.AutenticarClientAsync();
     }
 
     public async Task DisposeAsync()

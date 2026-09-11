@@ -1,5 +1,6 @@
 ﻿using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FutureVet.API.Controllers;
@@ -86,6 +87,8 @@ public class ConsultaController : ControllerBase
     /// <response code="201">Consulta criada com sucesso.</response>
     /// <response code="400">Dados inválidos.</response>
     [HttpPost]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ConsultaResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult> Create(CreateConsultaRequest request)
@@ -103,6 +106,8 @@ public class ConsultaController : ControllerBase
     /// <response code="400">Dados inválidos.</response>
     /// <response code="404">Consulta não encontrada.</response>
     [HttpPut("{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -121,6 +126,8 @@ public class ConsultaController : ControllerBase
     /// <response code="204">Removido com sucesso.</response>
     /// <response code="404">Consulta não encontrada.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(Guid id)

@@ -175,6 +175,45 @@ public class UsuarioEndpointsTests
     }
 
     [Fact]
+    public async Task GetByNome_NomeCadastrado_Retorna200ComOsUsuariosCorrespondentes()
+    {
+        // Arrange
+        var usuario = await _dados.CriarUsuarioAsync();
+
+        // Act
+        var response = await _client.GetAsync($"/api/Usuario/nome/{Uri.EscapeDataString(usuario.Nome)}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var usuarios = await response.Content
+            .ReadFromJsonAsync<List<UsuarioResponse>>(ApiJson.Options);
+
+        Assert.NotNull(usuarios);
+        Assert.Contains(usuarios, u => u.Id == usuario.Id);
+    }
+
+    [Fact]
+    public async Task GetByNome_NomeSemCorrespondencia_Retorna200ComListaVazia()
+    {
+        // Arrange
+        var nomeInexistente = $"NaoExiste{Guid.NewGuid():N}";
+
+        // Act
+        var response = await _client.GetAsync($"/api/Usuario/nome/{nomeInexistente}");
+
+        // Assert
+        // A busca parcial nao encontrar nada e um resultado valido, nao um erro.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var usuarios = await response.Content
+            .ReadFromJsonAsync<List<UsuarioResponse>>(ApiJson.Options);
+
+        Assert.NotNull(usuarios);
+        Assert.Empty(usuarios);
+    }
+
+    [Fact]
     public async Task Put_UsuarioExistente_Retorna204EPersisteAlteracao()
     {
         // Arrange
