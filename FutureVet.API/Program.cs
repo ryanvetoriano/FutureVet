@@ -69,7 +69,7 @@ try
     });
 
     // ---------- Autenticacao ----------
-    builder.Services.AddJwtAuthentication(builder.Configuration);
+    builder.Services.AddJwtAuthentication(builder.Configuration, builder.Environment);
 
     // ---------- Tratamento global de erros ----------
     builder.Services.AddProblemDetails();

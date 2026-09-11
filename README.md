@@ -308,7 +308,12 @@ Crie ou edite o arquivo `FutureVet.API/appsettings.Development.json` com suas cr
 
 ### Chave de assinatura do JWT
 
-A API **não sobe** sem ela. Gere uma chave aleatória de 32+ bytes e guarde em User Secrets:
+Em **Development**, a API sobe mesmo sem a chave: uma chave efêmera é gerada por execução e
+um aviso aparece no log — assim quem acabou de clonar o repositório consegue rodar de imediato.
+Como a chave muda a cada reinício, os tokens emitidos deixam de valer quando a API é reiniciada.
+
+Para uma chave estável (e obrigatória fora de Development), gere 32+ bytes aleatórios e guarde
+em User Secrets:
 
 ```bash
 dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -base64 48)" --project FutureVet.API
@@ -444,8 +449,12 @@ A chave **nunca é versionada**. O `appsettings.json` traz apenas `Issuer`, `Aud
 dotnet user-secrets set "Jwt:SigningKey" "<chave aleatoria de 32+ bytes>" --project FutureVet.API
 ```
 
-ou pela variável de ambiente `Jwt__SigningKey`. Sem ela, a API **não sobe** — falha na
-inicialização com uma mensagem explicando o que configurar, em vez de emitir tokens inseguros.
+ou pela variável de ambiente `Jwt__SigningKey`.
+
+| Ambiente | Sem a chave configurada |
+|---|---|
+| `Development` | Sobe normalmente com uma **chave efêmera** gerada por execução, registrando um `Warning`. Os tokens não sobrevivem a um reinício |
+| Qualquer outro | **Não sobe.** Falha na inicialização com uma mensagem explicando o que configurar, em vez de emitir tokens assinados com uma chave ausente ou improvisada |
 
 > ⚠️ **Limitação conhecida:** a senha do usuário é armazenada em **texto puro**, como
 > modelado nas sprints anteriores. O login faz a comparação em tempo constante

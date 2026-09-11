@@ -1,4 +1,4 @@
-namespace FutureVet.API.Auth;
+﻿namespace FutureVet.API.Auth;
 
 /// <summary>
 /// Configuração do JWT, lida da seção <c>Jwt</c>.
@@ -22,6 +22,14 @@ public sealed class JwtOptions
     public string SigningKey { get; set; } = string.Empty;
 
     public int ExpiracaoEmMinutos { get; set; } = 60;
+
+    /// <summary>
+    /// Gera uma chave aleatória criptograficamente forte, usada apenas como fallback de
+    /// desenvolvimento quando nenhuma chave foi configurada.
+    /// </summary>
+    public static string GerarChaveAleatoria()
+        => Convert.ToBase64String(
+            System.Security.Cryptography.RandomNumberGenerator.GetBytes(48));
 
     /// <summary>
     /// Valida a configuração na inicialização. Falhar aqui é melhor do que subir a API

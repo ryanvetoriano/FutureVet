@@ -3,6 +3,7 @@ using FutureVet.API.Auth;
 using FutureVet.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using Microsoft.OpenApi;
 
 namespace FutureVet.API.Extensions;
@@ -14,16 +15,42 @@ public static class AuthenticationExtensions
 {
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IWebHostEnvironment environment)
     {
         var options = configuration
             .GetSection(JwtOptions.SectionName)
             .Get<JwtOptions>() ?? new JwtOptions();
 
-        // Falha rápida: sem chave válida a API não sobe, em vez de emitir tokens inseguros.
+        // Em Development, uma chave ausente não deve impedir a aplicação de subir: quem
+        // acabou de clonar o repositório consegue rodar e explorar a API de imediato.
+        // A chave é gerada por processo, então os tokens deixam de valer a cada reinício —
+        // aceitável localmente, inaceitável em produção.
+        if (string.IsNullOrWhiteSpace(options.SigningKey) && environment.IsDevelopment())
+        {
+            options.SigningKey = JwtOptions.GerarChaveAleatoria();
+
+            Log.Warning(
+                "Nenhuma chave de assinatura do JWT foi configurada. Uma chave efêmera foi "
+                + "gerada para este processo, e os tokens emitidos deixarão de valer quando a "
+                + "API reiniciar. Isso só acontece em Development. Para uma chave estável: "
+                + "dotnet user-secrets set \"Jwt:SigningKey\" \"<chave>\" --project FutureVet.API");
+        }
+
+        // Fora de Development a falha é imediata: melhor não subir do que emitir tokens
+        // assinados com uma chave fraca, ausente ou improvisada.
         options.Validar();
 
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        // A configuração registrada no DI precisa carregar a MESMA chave usada acima para
+        // validar os tokens — inclusive quando ela veio do fallback de desenvolvimento.
+        services.Configure<JwtOptions>(jwt =>
+        {
+            jwt.Issuer = options.Issuer;
+            jwt.Audience = options.Audience;
+            jwt.SigningKey = options.SigningKey;
+            jwt.ExpiracaoEmMinutos = options.ExpiracaoEmMinutos;
+        });
+
         services.AddSingleton<ITokenGenerator, JwtTokenGenerator>();
 
         services
