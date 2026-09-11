@@ -27,6 +27,58 @@ Além das funcionalidades de negócio, a aplicação foi preparada para operar e
 
 ---
 
+# 🧭 Guia de Avaliação
+
+Onde cada critério das sprints está implementado e como verificá-lo.
+
+### Sprint 1 — CRUD, HTTP, Oracle e OpenAPI
+
+| Critério | Onde está | Como verificar |
+|---|---|---|
+| GET com mais de 3 rotas parametrizadas | **14 rotas** nos 4 controllers | [Rotas da API](#-rotas-da-api) |
+| POST, PUT, DELETE | 1 de cada nos 4 controllers | Swagger |
+| Organização REST | `api/[controller]` + sub-recursos (`/pet/{petId}`) | [Rotas da API](#-rotas-da-api) |
+| 200 / 201 / 204 / 400 / 404 / 401 | `ProducesResponseType` em todas as ações | 111 testes de integração |
+| DbContext | `FutureVet.Infrastructure/Persistence/FutureVetContext.cs` | — |
+| Mapeamento das entidades | `Persistence/Configurations/*.cs` (Fluent API) | — |
+| Conexão com Oracle | `GET /health` → check `database` | [Evidências](#-evidências) |
+| Migrations | `Migrations/20260523230247_InitialCreate` | `dotnet ef database update` |
+| Estrutura do banco | FKs em cascata + índices únicos (Email, CPF) | [Banco de Dados](#-banco-de-dados) |
+| Swagger configurado | Interface na raiz (`http://localhost:5189`) | [Evidências](#-evidências) |
+| Endpoints documentados | XML comments → **18 rotas** no OpenAPI | Swagger |
+| README | este arquivo | — |
+
+### Sprint 3 — Observabilidade e testes
+
+| Critério | Pts | Onde está |
+|---|---|---|
+| Health Checks | 15 | `FutureVet.API/HealthChecks/` e `Extensions/HealthCheckExtensions.cs` |
+| Logging estruturado (Serilog + correlação) | 10 | `Extensions/LoggingExtensions.cs`, `Middleware/CorrelationIdMiddleware.cs` |
+| Tracing e métricas (OpenTelemetry) | 15 | `Extensions/OpenTelemetryExtensions.cs`, `Application/Observability/` |
+| Testes unitários (xUnit + Moq, AAA) | 20 | `tests/FutureVet.UnitTests/` — **95 testes** |
+| Testes de integração (WebApplicationFactory) | 15 | `tests/FutureVet.IntegrationTests/` — **111 testes** |
+| Cobertura, nomenclatura, Fixtures | 15 | [Testes](#-testes) |
+| README | 10 | este arquivo |
+
+### Verificação em 3 comandos
+
+```bash
+dotnet test
+```
+
+```bash
+dotnet run --project FutureVet.API
+```
+
+Com a API no ar: Swagger em `http://localhost:5189`, e `/health`, `/health/ready` e `/metrics`
+respondendo sem autenticação.
+
+> Para testar `POST`, `PUT` e `DELETE` no Swagger, cadastre-se em `POST /api/usuario`
+> (público), autentique-se em `POST /api/auth/login` e clique em **Authorize** com o token.
+> Os `GET` funcionam sem isso. Detalhes em [Autenticação](#-autenticação).
+
+---
+
 # 🏗️ Arquitetura
 
 O projeto segue princípios de **Domain-Driven Design (DDD)** e separação de responsabilidades em camadas.

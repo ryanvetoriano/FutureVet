@@ -37,8 +37,22 @@ try
         {
             Title = "FutureVet API",
             Version = "v1",
-            Description = "API para gerenciamento veterinário: usuários, pets, vacinas e consultas. "
-                          + "Endpoints de observabilidade: /health, /health/live, /health/ready e /metrics.",
+            Description =
+                """
+                API para gerenciamento veterinário: usuários, pets, vacinas e consultas.
+
+                **Como testar as operações protegidas (POST, PUT e DELETE):**
+
+                1. Crie um usuário em `POST /api/Usuario` — este endpoint é público.
+                2. Autentique-se em `POST /api/Auth/login` com o mesmo e-mail e senha e copie o `token` da resposta.
+                3. Clique em **Authorize** (no topo à direita), cole apenas o token e confirme.
+
+                As operações marcadas com 🔒 exigem esse passo. Todas as consultas (`GET`) são
+                públicas e podem ser testadas sem autenticação.
+
+                **Observabilidade:** `/health`, `/health/live`, `/health/ready` e `/metrics`
+                (formato Prometheus) também são públicos.
+                """,
             Contact = new OpenApiContact
             {
                 Name = "FutureVet",
