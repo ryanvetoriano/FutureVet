@@ -1,3 +1,4 @@
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Usuario;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Interfaces.Services;
@@ -46,10 +47,16 @@ public class UsuarioService : IUsuarioService
         return usuario == null ? null : UsuarioResponse.FromDomain(usuario);
     }
 
-    public async Task<IEnumerable<UsuarioResponse>> GetAllAsync()
+    public async Task<PagedResponse<UsuarioResponse>> SearchAsync(UsuarioFiltro filtro)
     {
-        var usuarios = await _repository.GetAllAsync();
-        return usuarios.Select(UsuarioResponse.FromDomain);
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "UsuarioService.SearchAsync", "Usuario");
+
+        var resultado = await _repository.SearchAsync(filtro);
+
+        activity?.SetTag("futurevet.total", resultado.TotalItens);
+
+        return PagedResponse<UsuarioResponse>.De(resultado, filtro, UsuarioResponse.FromDomain);
     }
 
     public async Task<IEnumerable<UsuarioResponse>> GetByNomeAsync(string nome)

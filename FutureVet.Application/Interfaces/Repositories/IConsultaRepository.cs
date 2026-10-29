@@ -1,11 +1,13 @@
-﻿using FutureVet.Domain.Entities;
+﻿using FutureVet.Application.Common;
+using FutureVet.Application.DTOs.Consulta;
+using FutureVet.Domain.Entities;
 
 namespace FutureVet.Application.Interfaces.Repositories;
 
 public interface IConsultaRepository
 {
     Task<Consulta?> GetByIdAsync(Guid id);
-    Task<IEnumerable<Consulta>> GetAllAsync();
+    Task<PagedResult<Consulta>> SearchAsync(ConsultaFiltro filtro);
     Task<IEnumerable<Consulta>> GetByPetAsync(Guid petId);
     Task<IEnumerable<Consulta>> GetByDataAsync(DateTime data);
     Task<IEnumerable<Consulta>> GetByTipoAsync(string tipo);

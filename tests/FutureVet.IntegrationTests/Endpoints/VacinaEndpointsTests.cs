@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Vacina;
 using FutureVet.IntegrationTests.Fixtures;
 
@@ -20,22 +21,22 @@ public class VacinaEndpointsTests
     }
 
     [Fact]
-    public async Task GetAll_ApiDisponivel_Retorna200ComListaDeVacinas()
+    public async Task GetAll_FiltroPorPet_Retorna200ComPaginaContendoAVacina()
     {
         // Arrange
         var vacina = await _dados.CriarVacinaAsync();
 
         // Act
-        var response = await _client.GetAsync("/api/Vacina");
+        var response = await _client.GetAsync($"/api/Vacina?petId={vacina.PetId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var vacinas = await response.Content
-            .ReadFromJsonAsync<List<VacinaResponse>>(ApiJson.Options);
+        var pagina = await response.Content
+            .ReadFromJsonAsync<PagedResponse<VacinaResponse>>(ApiJson.Options);
 
-        Assert.NotNull(vacinas);
-        Assert.Contains(vacinas, v => v.Id == vacina.Id);
+        Assert.NotNull(pagina);
+        Assert.Contains(pagina.Itens, v => v.Id == vacina.Id);
     }
 
     [Fact]

@@ -1,4 +1,6 @@
-﻿using FutureVet.Application.DTOs.Consulta;
+﻿using FutureVet.API.Hateoas;
+using FutureVet.Application.DTOs.Common;
+using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,19 +13,28 @@ namespace FutureVet.API.Controllers;
 public class ConsultaController : ControllerBase
 {
     private readonly IConsultaService _service;
+    private readonly ResourceLinks<ConsultaResponse> _links;
 
-    public ConsultaController(IConsultaService service)
+    public ConsultaController(IConsultaService service, ResourceLinks<ConsultaResponse> links)
     {
         _service = service;
+        _links = links;
     }
 
-    /// <summary>Lista todas as consultas.</summary>
-    /// <response code="200">Retorna a lista de consultas.</response>
+    /// <summary>Lista consultas com paginação, ordenação e filtros.</summary>
+    /// <remarks>
+    /// Exemplo: <c>GET /api/Consulta?dataInicio=2026-03-01&amp;dataFim=2026-03-31&amp;tipo=rotina&amp;ordenarPor=data</c>
+    /// lista as consultas de rotina de março em ordem cronológica.
+    /// </remarks>
+    /// <response code="200">Página de consultas.</response>
+    /// <response code="400">Parâmetro de paginação, ordenação ou filtro inválido.</response>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<ConsultaResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ConsultaResponse>>> GetAll()
+    [ProducesResponseType(typeof(PagedResponse<ConsultaResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResponse<ConsultaResponse>>> GetAll([FromQuery] ConsultaFiltro filtro)
     {
-        return Ok(await _service.GetAllAsync());
+        var pagina = await _service.SearchAsync(filtro);
+        return Ok(_links.Aplicar(pagina));
     }
 
     /// <summary>Busca uma consulta pelo ID.</summary>
@@ -37,7 +48,7 @@ public class ConsultaController : ControllerBase
     {
         var consulta = await _service.GetByIdAsync(id);
         if (consulta == null) return NotFound();
-        return Ok(consulta);
+        return Ok(_links.Aplicar(consulta));
     }
 
     /// <summary>Lista todas as consultas de um pet.</summary>
@@ -48,7 +59,7 @@ public class ConsultaController : ControllerBase
     public async Task<ActionResult<IEnumerable<ConsultaResponse>>> GetByPet(Guid petId)
     {
         var consultas = await _service.GetByPetAsync(petId);
-        return Ok(consultas);
+        return Ok(_links.Aplicar(consultas));
     }
 
     /// <summary>Lista consultas por data (formato: yyyy-MM-dd).</summary>
@@ -64,7 +75,7 @@ public class ConsultaController : ControllerBase
             return BadRequest("Data inválida. Use o formato yyyy-MM-dd.");
 
         var consultas = await _service.GetByDataAsync(dataParsed);
-        return Ok(consultas);
+        return Ok(_links.Aplicar(consultas));
     }
 
     /// <summary>Lista consultas por tipo.</summary>
@@ -80,7 +91,7 @@ public class ConsultaController : ControllerBase
             return BadRequest("Tipo de consulta inválido.");
 
         var consultas = await _service.GetByTipoAsync(tipo);
-        return Ok(consultas);
+        return Ok(_links.Aplicar(consultas));
     }
 
     /// <summary>Cria uma nova consulta.</summary>
@@ -96,7 +107,7 @@ public class ConsultaController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
         var consulta = await _service.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = consulta.Id }, consulta);
+        return CreatedAtAction(nameof(GetById), new { id = consulta.Id }, _links.Aplicar(consulta));
     }
 
     /// <summary>Atualiza os dados de uma consulta.</summary>

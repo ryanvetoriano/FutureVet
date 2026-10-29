@@ -1,3 +1,4 @@
+using FutureVet.Application.Common;
 using FutureVet.Application.DTOs.Usuario;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Services;
@@ -112,24 +113,29 @@ public class UsuarioServiceTests
     }
 
     [Fact]
-    public async Task GetAllAsync_SemUsuariosCadastrados_RetornaColecaoVazia()
+    public async Task SearchAsync_SemUsuariosCadastrados_RetornaPaginaVazia()
     {
         // Arrange
+        var filtro = new UsuarioFiltro();
+
         _repositoryMock
-            .Setup(x => x.GetAllAsync())
-            .ReturnsAsync([]);
+            .Setup(x => x.SearchAsync(filtro))
+            .ReturnsAsync(new PagedResult<Usuario>([], 0));
 
         // Act
-        var response = await _service.GetAllAsync();
+        var pagina = await _service.SearchAsync(filtro);
 
         // Assert
-        Assert.Empty(response);
+        Assert.Empty(pagina.Itens);
+        Assert.Equal(0, pagina.TotalItens);
+        Assert.Equal(0, pagina.TotalPaginas);
     }
 
     [Fact]
-    public async Task GetAllAsync_ComUsuariosCadastrados_MapeiaTodosOsRegistros()
+    public async Task SearchAsync_ComUsuariosCadastrados_MapeiaItensEMetadadosDaPagina()
     {
         // Arrange
+        var filtro = new UsuarioFiltro { Pagina = 2, TamanhoPagina = 2, Nome = "ryan" };
         var usuarios = new List<Usuario>
         {
             TestData.UsuarioValido(email: "a@futurevet.com", cpf: "11111111111"),
@@ -137,16 +143,19 @@ public class UsuarioServiceTests
         };
 
         _repositoryMock
-            .Setup(x => x.GetAllAsync())
-            .ReturnsAsync(usuarios);
+            .Setup(x => x.SearchAsync(filtro))
+            .ReturnsAsync(new PagedResult<Usuario>(usuarios, 5));
 
         // Act
-        var response = (await _service.GetAllAsync()).ToList();
+        var pagina = await _service.SearchAsync(filtro);
 
         // Assert
-        Assert.Equal(2, response.Count);
-        Assert.Contains(response, r => r.Email == "a@futurevet.com");
-        Assert.Contains(response, r => r.Email == "b@futurevet.com");
+        Assert.Equal(["a@futurevet.com", "b@futurevet.com"], pagina.Itens.Select(u => u.Email));
+        Assert.Equal(2, pagina.Pagina);
+        Assert.Equal(2, pagina.TamanhoPagina);
+        Assert.Equal(5, pagina.TotalItens);
+        Assert.Equal(3, pagina.TotalPaginas);
+        _repositoryMock.Verify(x => x.SearchAsync(filtro), Times.Once);
     }
 
     [Fact]

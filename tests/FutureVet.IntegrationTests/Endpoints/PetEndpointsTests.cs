@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Pet;
 using FutureVet.Domain.Enums;
 using FutureVet.IntegrationTests.Fixtures;
@@ -19,22 +20,22 @@ public class PetEndpointsTests
     }
 
     [Fact]
-    public async Task GetAll_ApiDisponivel_Retorna200ComListaDePets()
+    public async Task GetAll_FiltroPorDono_Retorna200ComPaginaContendoOPet()
     {
         // Arrange
         var pet = await _dados.CriarPetAsync();
 
         // Act
-        var response = await _client.GetAsync("/api/Pet");
+        var response = await _client.GetAsync($"/api/Pet?usuarioId={pet.UsuarioId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var pets = await response.Content
-            .ReadFromJsonAsync<List<PetResponse>>(ApiJson.Options);
+        var pagina = await response.Content
+            .ReadFromJsonAsync<PagedResponse<PetResponse>>(ApiJson.Options);
 
-        Assert.NotNull(pets);
-        Assert.Contains(pets, p => p.Id == pet.Id);
+        Assert.NotNull(pagina);
+        Assert.Contains(pagina.Itens, p => p.Id == pet.Id);
     }
 
     [Fact]

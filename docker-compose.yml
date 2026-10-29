@@ -1,0 +1,22 @@
+# MongoDB para desenvolvimento local. O Oracle continua sendo o da FIAP (ou outro
+# configurado em ConnectionStrings:OracleConnection).
+#
+#   docker compose up -d mongodb
+#
+# A API ja aponta para mongodb://localhost:27017 no appsettings.json.
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: futurevet-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - futurevet-mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  futurevet-mongodb-data:

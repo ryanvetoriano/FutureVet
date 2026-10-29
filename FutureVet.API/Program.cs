@@ -3,12 +3,8 @@ using FutureVet.API.Auth;
 using FutureVet.API.Errors;
 using FutureVet.API.Extensions;
 using FutureVet.API.Middleware;
-using FutureVet.Application.Interfaces.Repositories;
-using FutureVet.Application.Interfaces.Services;
-using FutureVet.Application.Services;
-using FutureVet.Infrastructure.Persistence;
-using FutureVet.Infrastructure.Persistence.Repositories;
-using Microsoft.EntityFrameworkCore;
+using FutureVet.Application;
+using FutureVet.Infrastructure;
 using Microsoft.OpenApi;
 using Serilog;
 
@@ -39,7 +35,19 @@ try
             Version = "v1",
             Description =
                 """
-                API para gerenciamento veterinário: usuários, pets, vacinas e consultas.
+                API para gerenciamento veterinário: usuários, pets, vacinas, consultas e o
+                prontuário clínico dos pets.
+
+                **Persistência:** usuários, pets, vacinas e consultas ficam no **Oracle**
+                (EF Core); o prontuário (`/api/RegistroClinico`) fica no **MongoDB**.
+
+                **Listagens:** o `GET` raiz de cada recurso aceita paginação (`pagina`,
+                `tamanhoPagina`), ordenação (`ordenarPor`, `direcao=asc|desc`) e filtros
+                próprios do recurso.
+
+                **HATEOAS:** toda resposta de consulta traz `links` com as ações e os recursos
+                relacionados (`self`, `update`, `delete`, `pet`, `vacinas`...) e, nas listagens,
+                a navegação entre páginas (`first`, `prev`, `next`, `last`).
 
                 **Como testar as operações protegidas (POST, PUT e DELETE):**
 
@@ -60,12 +68,19 @@ try
             }
         });
 
-        var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-        var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-        if (File.Exists(xmlPath))
-            options.IncludeXmlComments(xmlPath);
+        // Comentários XML da API (controllers) e da Application (DTOs e filtros).
+        foreach (var assembly in new[] { Assembly.GetExecutingAssembly(), typeof(FutureVet.Application.DependencyInjection).Assembly })
+        {
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, $"{assembly.GetName().Name}.xml");
+            if (File.Exists(xmlPath))
+                options.IncludeXmlComments(xmlPath);
+        }
 
         options.AddJwtSecurityDefinition();
+
+        // Os filtros são classes [FromQuery]; sem isto, o Swagger exibiria "Pagina" e
+        // "OrdenarPor" em vez de "pagina" e "ordenarPor", como estão na documentação.
+        options.DescribeAllParametersInCamelCase();
     });
 
     // ---------- Autenticacao ----------
@@ -75,23 +90,12 @@ try
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-    // ---------- DbContext Oracle ----------
-    builder.Services.AddDbContext<FutureVetContext>(options =>
-        options.UseOracle(
-            builder.Configuration.GetConnectionString("OracleConnection")));
+    // ---------- Camadas (cada uma registra as próprias dependências) ----------
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
 
-    // ---------- Repositories ----------
-    builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
-    builder.Services.AddScoped<IPetRepository, PetRepository>();
-    builder.Services.AddScoped<IVacinaRepository, VacinaRepository>();
-    builder.Services.AddScoped<IConsultaRepository, ConsultaRepository>();
-
-    // ---------- Services ----------
-    builder.Services.AddScoped<IUsuarioService, UsuarioService>();
-    builder.Services.AddScoped<IPetService, PetService>();
-    builder.Services.AddScoped<IVacinaService, VacinaService>();
-    builder.Services.AddScoped<IConsultaService, ConsultaService>();
-    builder.Services.AddScoped<IAuthService, AuthService>();
+    // ---------- HATEOAS ----------
+    builder.Services.AddHateoas();
 
     // ---------- Observabilidade: health checks, tracing e métricas ----------
     builder.Services.AddApplicationHealthChecks(builder.Configuration);

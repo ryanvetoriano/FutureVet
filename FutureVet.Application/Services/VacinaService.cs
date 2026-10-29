@@ -1,3 +1,4 @@
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Vacina;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Interfaces.Services;
@@ -40,10 +41,16 @@ public class VacinaService : IVacinaService
         return vacina == null ? null : VacinaResponse.FromDomain(vacina);
     }
 
-    public async Task<IEnumerable<VacinaResponse>> GetAllAsync()
+    public async Task<PagedResponse<VacinaResponse>> SearchAsync(VacinaFiltro filtro)
     {
-        var vacinas = await _repository.GetAllAsync();
-        return vacinas.Select(VacinaResponse.FromDomain);
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "VacinaService.SearchAsync", "Vacina");
+
+        var resultado = await _repository.SearchAsync(filtro);
+
+        activity?.SetTag("futurevet.total", resultado.TotalItens);
+
+        return PagedResponse<VacinaResponse>.De(resultado, filtro, VacinaResponse.FromDomain);
     }
 
     public async Task<IEnumerable<VacinaResponse>> GetByPetAsync(Guid petId)

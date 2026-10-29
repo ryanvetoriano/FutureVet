@@ -43,6 +43,14 @@ public static class HealthCheckExtensions
             tags: [ReadyTag, "db"],
             timeout: TimeSpan.FromSeconds(10));
 
+        // MongoDB: guarda o prontuário. Fora do ar, degrada a API em vez de derrubá-la,
+        // porque todo o restante depende apenas do Oracle.
+        builder.AddCheck<MongoDbHealthCheck>(
+            MongoDbHealthCheck.Name,
+            failureStatus: HealthStatus.Degraded,
+            tags: [ReadyTag, "db", "nosql"],
+            timeout: TimeSpan.FromSeconds(10));
+
         foreach (var externo in externalServices)
         {
             if (string.IsNullOrWhiteSpace(externo.Name) ||

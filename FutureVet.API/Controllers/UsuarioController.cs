@@ -1,4 +1,6 @@
-﻿using FutureVet.Application.DTOs.Usuario;
+﻿using FutureVet.API.Hateoas;
+using FutureVet.Application.DTOs.Common;
+using FutureVet.Application.DTOs.Usuario;
 using FutureVet.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,19 +13,27 @@ namespace FutureVet.API.Controllers;
 public class UsuarioController : ControllerBase
 {
     private readonly IUsuarioService _service;
+    private readonly ResourceLinks<UsuarioResponse> _links;
 
-    public UsuarioController(IUsuarioService service)
+    public UsuarioController(IUsuarioService service, ResourceLinks<UsuarioResponse> links)
     {
         _service = service;
+        _links = links;
     }
 
-    /// <summary>Lista todos os usuários.</summary>
-    /// <response code="200">Retorna a lista de usuários.</response>
+    /// <summary>Lista usuários com paginação, ordenação e filtros.</summary>
+    /// <remarks>
+    /// Exemplo: <c>GET /api/Usuario?nome=silva&amp;ordenarPor=email&amp;pagina=1&amp;tamanhoPagina=10</c>.
+    /// </remarks>
+    /// <response code="200">Página de usuários.</response>
+    /// <response code="400">Parâmetro de paginação, ordenação ou filtro inválido.</response>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<UsuarioResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<UsuarioResponse>>> GetAll()
+    [ProducesResponseType(typeof(PagedResponse<UsuarioResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResponse<UsuarioResponse>>> GetAll([FromQuery] UsuarioFiltro filtro)
     {
-        return Ok(await _service.GetAllAsync());
+        var pagina = await _service.SearchAsync(filtro);
+        return Ok(_links.Aplicar(pagina));
     }
 
     /// <summary>Busca um usuário pelo ID.</summary>
@@ -37,7 +47,7 @@ public class UsuarioController : ControllerBase
     {
         var usuario = await _service.GetByIdAsync(id);
         if (usuario == null) return NotFound();
-        return Ok(usuario);
+        return Ok(_links.Aplicar(usuario));
     }
 
     /// <summary>Busca um usuário pelo e-mail.</summary>
@@ -56,7 +66,7 @@ public class UsuarioController : ControllerBase
 
         var usuario = await _service.GetByEmailAsync(email);
         if (usuario == null) return NotFound();
-        return Ok(usuario);
+        return Ok(_links.Aplicar(usuario));
     }
 
     /// <summary>Busca usuários pelo nome (busca parcial).</summary>
@@ -72,7 +82,7 @@ public class UsuarioController : ControllerBase
             return BadRequest("Nome inválido.");
 
         var usuarios = await _service.GetByNomeAsync(nome);
-        return Ok(usuarios);
+        return Ok(_links.Aplicar(usuarios));
     }
 
     /// <summary>Cria um novo usuário.</summary>
@@ -89,7 +99,7 @@ public class UsuarioController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
         var usuario = await _service.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = usuario.Id }, usuario);
+        return CreatedAtAction(nameof(GetById), new { id = usuario.Id }, _links.Aplicar(usuario));
     }
 
     /// <summary>Atualiza nome e telefone de um usuário.</summary>

@@ -1,4 +1,5 @@
-﻿using FutureVet.Application.DTOs.Consulta;
+﻿using FutureVet.Application.DTOs.Common;
+using FutureVet.Application.DTOs.Consulta;
 
 namespace FutureVet.Application.Interfaces.Services;
 
@@ -6,7 +7,7 @@ public interface IConsultaService
 {
     Task<ConsultaResponse> CreateAsync(CreateConsultaRequest request);
     Task<ConsultaResponse?> GetByIdAsync(Guid id);
-    Task<IEnumerable<ConsultaResponse>> GetAllAsync();
+    Task<PagedResponse<ConsultaResponse>> SearchAsync(ConsultaFiltro filtro);
     Task<IEnumerable<ConsultaResponse>> GetByPetAsync(Guid petId);
     Task<IEnumerable<ConsultaResponse>> GetByDataAsync(DateTime data);
     Task<IEnumerable<ConsultaResponse>> GetByTipoAsync(string tipo);

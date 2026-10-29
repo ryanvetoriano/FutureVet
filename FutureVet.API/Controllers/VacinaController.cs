@@ -1,4 +1,6 @@
-﻿using FutureVet.Application.DTOs.Vacina;
+﻿using FutureVet.API.Hateoas;
+using FutureVet.Application.DTOs.Common;
+using FutureVet.Application.DTOs.Vacina;
 using FutureVet.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,19 +13,28 @@ namespace FutureVet.API.Controllers;
 public class VacinaController : ControllerBase
 {
     private readonly IVacinaService _service;
+    private readonly ResourceLinks<VacinaResponse> _links;
 
-    public VacinaController(IVacinaService service)
+    public VacinaController(IVacinaService service, ResourceLinks<VacinaResponse> links)
     {
         _service = service;
+        _links = links;
     }
 
-    /// <summary>Lista todas as vacinas.</summary>
-    /// <response code="200">Retorna a lista de vacinas.</response>
+    /// <summary>Lista vacinas com paginação, ordenação e filtros.</summary>
+    /// <remarks>
+    /// Exemplo: <c>GET /api/Vacina?proximaDoseAte=2026-12-31&amp;ordenarPor=proximaDose&amp;pagina=1</c>
+    /// lista as doses que vencem até o fim do ano, da mais próxima para a mais distante.
+    /// </remarks>
+    /// <response code="200">Página de vacinas.</response>
+    /// <response code="400">Parâmetro de paginação, ordenação ou filtro inválido.</response>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<VacinaResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<VacinaResponse>>> GetAll()
+    [ProducesResponseType(typeof(PagedResponse<VacinaResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResponse<VacinaResponse>>> GetAll([FromQuery] VacinaFiltro filtro)
     {
-        return Ok(await _service.GetAllAsync());
+        var pagina = await _service.SearchAsync(filtro);
+        return Ok(_links.Aplicar(pagina));
     }
 
     /// <summary>Busca uma vacina pelo ID.</summary>
@@ -37,7 +48,7 @@ public class VacinaController : ControllerBase
     {
         var vacina = await _service.GetByIdAsync(id);
         if (vacina == null) return NotFound();
-        return Ok(vacina);
+        return Ok(_links.Aplicar(vacina));
     }
 
     /// <summary>Lista todas as vacinas de um pet.</summary>
@@ -48,7 +59,7 @@ public class VacinaController : ControllerBase
     public async Task<ActionResult<IEnumerable<VacinaResponse>>> GetByPet(Guid petId)
     {
         var vacinas = await _service.GetByPetAsync(petId);
-        return Ok(vacinas);
+        return Ok(_links.Aplicar(vacinas));
     }
 
     /// <summary>Lista vacinas com próxima dose até uma data.</summary>
@@ -64,7 +75,7 @@ public class VacinaController : ControllerBase
             return BadRequest("Data inválida. Use o formato yyyy-MM-dd.");
 
         var vacinas = await _service.GetByProximaDoseAsync(dataLimite);
-        return Ok(vacinas);
+        return Ok(_links.Aplicar(vacinas));
     }
 
     /// <summary>Cria uma nova vacina.</summary>
@@ -80,7 +91,7 @@ public class VacinaController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
         var vacina = await _service.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = vacina.Id }, vacina);
+        return CreatedAtAction(nameof(GetById), new { id = vacina.Id }, _links.Aplicar(vacina));
     }
 
     /// <summary>Atualiza os dados de uma vacina.</summary>

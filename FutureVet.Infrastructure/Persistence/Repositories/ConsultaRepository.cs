@@ -1,4 +1,6 @@
-﻿using FutureVet.Application.Interfaces.Repositories;
+﻿using FutureVet.Application.Common;
+using FutureVet.Application.DTOs.Consulta;
+using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,8 +27,49 @@ public class ConsultaRepository : IConsultaRepository
         await _context.SaveChangesAsync();
     }
 
-    public async Task<IEnumerable<Consulta>> GetAllAsync()
-        => await _context.Consultas.ToListAsync();
+    public async Task<PagedResult<Consulta>> SearchAsync(ConsultaFiltro filtro)
+    {
+        var query = _context.Consultas.AsNoTracking();
+
+        if (filtro.PetId.HasValue)
+            query = query.Where(x => x.PetId == filtro.PetId.Value);
+
+        if (!string.IsNullOrWhiteSpace(filtro.Tipo))
+        {
+            var tipo = filtro.Tipo.Trim().ToUpper();
+            query = query.Where(x => x.TipoConsulta.ToUpper().Contains(tipo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Local))
+        {
+            var local = filtro.Local.Trim().ToUpper();
+            query = query.Where(x => x.Local.ToUpper().Contains(local));
+        }
+
+        // Filtros de data comparam dias inteiros: "até 10/01" inclui o dia 10 todo.
+        if (filtro.DataInicio.HasValue)
+        {
+            var inicio = filtro.DataInicio.Value.Date;
+            query = query.Where(x => x.Data >= inicio);
+        }
+
+        if (filtro.DataFim.HasValue)
+        {
+            var limite = filtro.DataFim.Value.Date.AddDays(1);
+            query = query.Where(x => x.Data < limite);
+        }
+
+        var descendente = filtro.OrdemDescendente();
+
+        var ordenada = filtro.CampoOrdenacao() switch
+        {
+            "tipo" => query.OrdenarPor(x => x.TipoConsulta, descendente),
+            "local" => query.OrdenarPor(x => x.Local, descendente),
+            _ => query.OrdenarPor(x => x.Data, descendente)
+        };
+
+        return await ordenada.ThenBy(x => x.Id).PaginarAsync(filtro);
+    }
 
     public async Task<IEnumerable<Consulta>> GetByPetAsync(Guid petId)
         => await _context.Consultas.Where(x => x.PetId == petId).ToListAsync();

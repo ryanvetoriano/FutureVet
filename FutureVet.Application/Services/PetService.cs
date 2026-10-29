@@ -1,3 +1,4 @@
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Pet;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Interfaces.Services;
@@ -29,10 +30,16 @@ public class PetService : IPetService
         return PetResponse.FromDomain(pet);
     }
 
-    public async Task<IEnumerable<PetResponse>> GetAllAsync()
+    public async Task<PagedResponse<PetResponse>> SearchAsync(PetFiltro filtro)
     {
-        var pets = await _repository.GetAllAsync();
-        return pets.Select(PetResponse.FromDomain);
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "PetService.SearchAsync", "Pet");
+
+        var resultado = await _repository.SearchAsync(filtro);
+
+        activity?.SetTag("futurevet.total", resultado.TotalItens);
+
+        return PagedResponse<PetResponse>.De(resultado, filtro, PetResponse.FromDomain);
     }
 
     public async Task<PetResponse?> GetByIdAsync(Guid id)

@@ -1,4 +1,4 @@
-﻿using FutureVet.Domain.Entities;
+using FutureVet.Application.DTOs.Common;
 
 namespace FutureVet.Application.DTOs.Usuario;
 
@@ -8,7 +8,7 @@ public record UsuarioResponse(
     string Email,
     string Cpf,
     string Telefone
-)
+) : ResourceResponse
 {
     public static UsuarioResponse FromDomain(
         Domain.Entities.Usuario usuario)

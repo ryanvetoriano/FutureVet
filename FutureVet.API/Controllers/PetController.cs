@@ -1,4 +1,6 @@
-﻿using FutureVet.Application.DTOs.Pet;
+﻿using FutureVet.API.Hateoas;
+using FutureVet.Application.DTOs.Common;
+using FutureVet.Application.DTOs.Pet;
 using FutureVet.Application.Interfaces.Services;
 using FutureVet.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -12,19 +14,29 @@ namespace FutureVet.API.Controllers;
 public class PetController : ControllerBase
 {
     private readonly IPetService _service;
+    private readonly ResourceLinks<PetResponse> _links;
 
-    public PetController(IPetService service)
+    public PetController(IPetService service, ResourceLinks<PetResponse> links)
     {
         _service = service;
+        _links = links;
     }
 
-    /// <summary>Lista todos os pets.</summary>
-    /// <response code="200">Retorna a lista de pets.</response>
+    /// <summary>Lista pets com paginação, ordenação e filtros.</summary>
+    /// <remarks>
+    /// Exemplo: <c>GET /api/Pet?especie=1&amp;idadeMinima=2&amp;ordenarPor=peso&amp;direcao=desc&amp;pagina=1&amp;tamanhoPagina=10</c>.
+    /// A resposta traz os links de navegação entre páginas (<c>first</c>, <c>prev</c>,
+    /// <c>next</c>, <c>last</c>) e, em cada pet, os links das ações e recursos relacionados.
+    /// </remarks>
+    /// <response code="200">Página de pets.</response>
+    /// <response code="400">Parâmetro de paginação, ordenação ou filtro inválido.</response>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<PetResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<PetResponse>>> GetAll()
+    [ProducesResponseType(typeof(PagedResponse<PetResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResponse<PetResponse>>> GetAll([FromQuery] PetFiltro filtro)
     {
-        return Ok(await _service.GetAllAsync());
+        var pagina = await _service.SearchAsync(filtro);
+        return Ok(_links.Aplicar(pagina));
     }
 
     /// <summary>Busca um pet pelo ID.</summary>
@@ -38,7 +50,7 @@ public class PetController : ControllerBase
     {
         var pet = await _service.GetByIdAsync(id);
         if (pet == null) return NotFound();
-        return Ok(pet);
+        return Ok(_links.Aplicar(pet));
     }
 
     /// <summary>Busca pets pelo nome (busca parcial).</summary>
@@ -54,7 +66,7 @@ public class PetController : ControllerBase
             return BadRequest("Nome inválido.");
 
         var pets = await _service.GetByNomeAsync(nome);
-        return Ok(pets);
+        return Ok(_links.Aplicar(pets));
     }
 
     /// <summary>Busca pets por espécie.</summary>
@@ -70,7 +82,7 @@ public class PetController : ControllerBase
             return BadRequest("Espécie inválida. Valores aceitos: 1=Cão, 2=Gato, 3=Coelho, 4=Outro.");
 
         var pets = await _service.GetByEspecieAsync((EspeciePet)especie);
-        return Ok(pets);
+        return Ok(_links.Aplicar(pets));
     }
 
     /// <summary>Lista todos os pets de um usuário.</summary>
@@ -81,7 +93,7 @@ public class PetController : ControllerBase
     public async Task<ActionResult<IEnumerable<PetResponse>>> GetByUsuario(Guid usuarioId)
     {
         var pets = await _service.GetByUsuarioAsync(usuarioId);
-        return Ok(pets);
+        return Ok(_links.Aplicar(pets));
     }
 
     /// <summary>Cria um novo pet.</summary>
@@ -97,7 +109,7 @@ public class PetController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
         var pet = await _service.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = pet.Id }, pet);
+        return CreatedAtAction(nameof(GetById), new { id = pet.Id }, _links.Aplicar(pet));
     }
 
     /// <summary>Atualiza os dados de um pet.</summary>

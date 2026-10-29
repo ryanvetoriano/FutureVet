@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Mongo2Go;
 
 namespace FutureVet.IntegrationTests.Fixtures;
 
@@ -23,6 +25,10 @@ namespace FutureVet.IntegrationTests.Fixtures;
 /// <para><b>Serviços externos.</b> O ambiente <c>Testing</c> carrega
 /// <c>appsettings.Testing.json</c>, que deixa <c>HealthChecks:ExternalServices</c> vazio e
 /// <c>OpenTelemetry:OtlpEndpoint</c> em branco. Nenhuma telemetria sai da máquina.</para>
+/// <para><b>MongoDB.</b> Cada factory sobe um <c>mongod</c> real e efêmero com o Mongo2Go
+/// (binários do MongoDB 8 distribuídos no próprio pacote NuGet, sem Docker). O banco nasce
+/// vazio, é usado só por este host e é apagado no <see cref="Dispose(bool)"/> — por isso os
+/// registros clínicos não precisam de limpeza, ao contrário dos dados no Oracle.</para>
 /// </remarks>
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -31,6 +37,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     /// <see cref="UnavailableDatabaseFactory"/> para simular o banco fora do ar.
     /// </summary>
     protected virtual string ConnectionString => TestOracleSettings.ObterConnectionString();
+
+    private MongoDbRunner? _mongo;
+
+    /// <summary>
+    /// Connection string do MongoDB usado pelo host. Sobrescrita por
+    /// <see cref="UnavailableMongoFactory"/> para simular o MongoDB fora do ar.
+    /// </summary>
+    protected virtual string MongoConnectionString
+        // NullLogger: sem ele, o Mongo2Go despeja todo o log do mongod na saída dos testes.
+        => (_mongo ??= MongoDbRunner.Start(logger: NullLogger.Instance)).ConnectionString;
 
     /// <summary>
     /// Chave de assinatura exclusiva desta execução, gerada em memória. Os testes nunca
@@ -46,6 +62,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         // User Secrets só são carregados no ambiente Development; no ambiente Testing a
         // chave precisa vir daqui, senão a validação do JwtOptions barra a inicialização.
         builder.UseSetting("Jwt:SigningKey", ChaveDeTeste);
+
+        builder.UseSetting("ConnectionStrings:MongoConnection", MongoConnectionString);
 
         builder.ConfigureServices(services =>
         {
@@ -92,6 +110,18 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     /// Usado apenas pela limpeza de dados — os testes em si passam pelos endpoints HTTP.
     /// </summary>
     public IServiceScope CriarEscopo() => Services.CreateScope();
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+
+        // Encerra o mongod e apaga o diretório de dados temporário.
+        if (disposing)
+        {
+            _mongo?.Dispose();
+            _mongo = null;
+        }
+    }
 
     /// <summary>
     /// Remove o registro do DbContext feito no <c>Program.cs</c> para que o registro de teste

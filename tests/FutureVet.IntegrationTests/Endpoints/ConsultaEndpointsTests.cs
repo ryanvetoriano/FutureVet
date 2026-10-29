@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Consulta;
 using FutureVet.IntegrationTests.Fixtures;
 
@@ -20,22 +21,22 @@ public class ConsultaEndpointsTests
     }
 
     [Fact]
-    public async Task GetAll_ApiDisponivel_Retorna200ComListaDeConsultas()
+    public async Task GetAll_FiltroPorPet_Retorna200ComPaginaContendoAConsulta()
     {
         // Arrange
         var consulta = await _dados.CriarConsultaAsync();
 
         // Act
-        var response = await _client.GetAsync("/api/Consulta");
+        var response = await _client.GetAsync($"/api/Consulta?petId={consulta.PetId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var consultas = await response.Content
-            .ReadFromJsonAsync<List<ConsultaResponse>>(ApiJson.Options);
+        var pagina = await response.Content
+            .ReadFromJsonAsync<PagedResponse<ConsultaResponse>>(ApiJson.Options);
 
-        Assert.NotNull(consultas);
-        Assert.Contains(consultas, c => c.Id == consulta.Id);
+        Assert.NotNull(pagina);
+        Assert.Contains(pagina.Itens, c => c.Id == consulta.Id);
     }
 
     [Fact]

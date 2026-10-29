@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Usuario;
 using FutureVet.IntegrationTests.Fixtures;
 
@@ -18,22 +19,22 @@ public class UsuarioEndpointsTests
     }
 
     [Fact]
-    public async Task GetAll_ApiDisponivel_Retorna200ComListaDeUsuarios()
+    public async Task GetAll_FiltroPorEmail_Retorna200ComPaginaContendoOUsuario()
     {
         // Arrange
         var usuarioCriado = await _dados.CriarUsuarioAsync();
 
         // Act
-        var response = await _client.GetAsync("/api/Usuario");
+        var response = await _client.GetAsync($"/api/Usuario?email={Uri.EscapeDataString(usuarioCriado.Email)}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var usuarios = await response.Content
-            .ReadFromJsonAsync<List<UsuarioResponse>>(ApiJson.Options);
+        var pagina = await response.Content
+            .ReadFromJsonAsync<PagedResponse<UsuarioResponse>>(ApiJson.Options);
 
-        Assert.NotNull(usuarios);
-        Assert.Contains(usuarios, u => u.Id == usuarioCriado.Id);
+        Assert.NotNull(pagina);
+        Assert.Contains(pagina.Itens, u => u.Id == usuarioCriado.Id);
     }
 
     [Fact]

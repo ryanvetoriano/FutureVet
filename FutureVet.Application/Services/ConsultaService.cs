@@ -1,3 +1,4 @@
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Interfaces.Services;
@@ -40,10 +41,16 @@ public class ConsultaService : IConsultaService
         return consulta == null ? null : ConsultaResponse.FromDomain(consulta);
     }
 
-    public async Task<IEnumerable<ConsultaResponse>> GetAllAsync()
+    public async Task<PagedResponse<ConsultaResponse>> SearchAsync(ConsultaFiltro filtro)
     {
-        var consultas = await _repository.GetAllAsync();
-        return consultas.Select(ConsultaResponse.FromDomain);
+        using var activity = ApplicationDiagnostics.StartOperation(
+            "ConsultaService.SearchAsync", "Consulta");
+
+        var resultado = await _repository.SearchAsync(filtro);
+
+        activity?.SetTag("futurevet.total", resultado.TotalItens);
+
+        return PagedResponse<ConsultaResponse>.De(resultado, filtro, ConsultaResponse.FromDomain);
     }
 
     public async Task<IEnumerable<ConsultaResponse>> GetByPetAsync(Guid petId)

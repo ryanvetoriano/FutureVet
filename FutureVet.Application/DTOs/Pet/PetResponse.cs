@@ -1,4 +1,4 @@
-﻿using FutureVet.Domain.Entities;
+using FutureVet.Application.DTOs.Common;
 using FutureVet.Domain.Enums;
 
 namespace FutureVet.Application.DTOs.Pet;
@@ -10,8 +10,9 @@ public record PetResponse(
     string? Raca,
     int Idade,
     PortePet Tamanho,
-    decimal Peso
-)
+    decimal Peso,
+    Guid UsuarioId
+) : ResourceResponse
 {
     public static PetResponse FromDomain(
         Domain.Entities.Pet pet)
@@ -23,7 +24,8 @@ public record PetResponse(
             pet.Raca,
             pet.Idade,
             pet.Tamanho,
-            pet.Peso
+            pet.Peso,
+            pet.UsuarioId
         );
     }
 }

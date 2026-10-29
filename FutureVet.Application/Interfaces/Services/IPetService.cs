@@ -1,4 +1,5 @@
-﻿using FutureVet.Application.DTOs.Pet;
+﻿using FutureVet.Application.DTOs.Common;
+using FutureVet.Application.DTOs.Pet;
 using FutureVet.Domain.Enums;
 
 namespace FutureVet.Application.Interfaces.Services;
@@ -6,7 +7,7 @@ namespace FutureVet.Application.Interfaces.Services;
 public interface IPetService
 {
     Task<PetResponse> CreateAsync(CreatePetRequest request);
-    Task<IEnumerable<PetResponse>> GetAllAsync();
+    Task<PagedResponse<PetResponse>> SearchAsync(PetFiltro filtro);
     Task<PetResponse?> GetByIdAsync(Guid id);
     Task<IEnumerable<PetResponse>> GetByNomeAsync(string nome);
     Task<IEnumerable<PetResponse>> GetByEspecieAsync(EspeciePet especie);

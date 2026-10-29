@@ -1,4 +1,4 @@
-﻿using FutureVet.Domain.Entities;
+using FutureVet.Application.DTOs.Common;
 
 namespace FutureVet.Application.DTOs.Vacina;
 
@@ -9,7 +9,7 @@ public record VacinaResponse(
     DateTime ProximaDose,
     string LocalAplicacao,
     Guid PetId
-)
+) : ResourceResponse
 {
     public static VacinaResponse FromDomain(
         Domain.Entities.Vacina vacina)
