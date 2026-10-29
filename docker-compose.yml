@@ -4,6 +4,10 @@
 #   docker compose up -d mongodb
 #
 # A API ja aponta para mongodb://localhost:27017 no appsettings.json.
+
+# Nome fixo: sem ele, rede e volume herdariam o nome da pasta do clone.
+name: futurevet
+
 services:
   mongodb:
     image: mongo:8.0
