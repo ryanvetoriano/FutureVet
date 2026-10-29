@@ -1,3 +1,4 @@
+using FutureVet.Application.Common;
 using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Services;
@@ -250,5 +251,25 @@ public class ConsultaServiceTests
 
         // Assert
         _repositoryMock.Verify(x => x.DeleteAsync(It.IsAny<Consulta>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SearchAsync_UltimaPagina_IndicaPaginaAnteriorESemProxima()
+    {
+        // Arrange
+        var filtro = new ConsultaFiltro { Pagina = 2, TamanhoPagina = 1 };
+        var consulta = TestData.ConsultaValida();
+
+        _repositoryMock
+            .Setup(x => x.SearchAsync(filtro))
+            .ReturnsAsync(new PagedResult<Consulta>([consulta], 2));
+
+        // Act
+        var pagina = await _service.SearchAsync(filtro);
+
+        // Assert
+        Assert.Equal(consulta.Id, Assert.Single(pagina.Itens).Id);
+        Assert.True(pagina.TemPaginaAnterior);
+        Assert.False(pagina.TemProximaPagina);
     }
 }

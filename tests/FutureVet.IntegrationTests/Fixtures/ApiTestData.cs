@@ -5,6 +5,7 @@ using System.Text.Json;
 using FutureVet.Application.DTOs.Auth;
 using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.DTOs.Pet;
+using FutureVet.Application.DTOs.RegistroClinico;
 using FutureVet.Application.DTOs.Usuario;
 using FutureVet.Application.DTOs.Vacina;
 using FutureVet.Domain.Enums;
@@ -76,17 +77,22 @@ public sealed class ApiTestData
         return usuario;
     }
 
-    public async Task<PetResponse> CriarPetAsync(Guid? usuarioId = null)
+    public async Task<PetResponse> CriarPetAsync(
+        Guid? usuarioId = null,
+        string? nome = null,
+        int idade = 3,
+        EspeciePet especie = EspeciePet.Cao,
+        decimal peso = 32.5m)
     {
         var donoId = usuarioId ?? (await CriarUsuarioAsync()).Id;
 
         var request = new CreatePetRequest(
-            $"Pet {Sufixo()}",
-            EspeciePet.Cao,
+            nome ?? $"Pet {Sufixo()}",
+            especie,
             "Labrador",
-            3,
+            idade,
             PortePet.Grande,
-            32.5m,
+            peso,
             donoId);
 
         var response = await _client.PostAsJsonAsync("/api/Pet", request, ApiJson.Options);
@@ -113,13 +119,16 @@ public sealed class ApiTestData
         return (await response.Content.ReadFromJsonAsync<VacinaResponse>(ApiJson.Options))!;
     }
 
-    public async Task<ConsultaResponse> CriarConsultaAsync(Guid? petId = null)
+    public async Task<ConsultaResponse> CriarConsultaAsync(
+        Guid? petId = null,
+        DateTime? data = null,
+        string tipo = "Rotina")
     {
         var pet = petId ?? (await CriarPetAsync()).Id;
 
         var request = new CreateConsultaRequest(
-            "Rotina",
-            new DateTime(2026, 3, 15),
+            tipo,
+            data ?? new DateTime(2026, 3, 15),
             "14:30",
             "Clínica Central",
             pet);
@@ -128,6 +137,36 @@ public sealed class ApiTestData
         response.EnsureSuccessStatusCode();
 
         return (await response.Content.ReadFromJsonAsync<ConsultaResponse>(ApiJson.Options))!;
+    }
+
+    public async Task<RegistroClinicoResponse> CriarRegistroClinicoAsync(
+        Guid? petId = null,
+        TipoRegistroClinico tipo = TipoRegistroClinico.Observacao,
+        string titulo = "Check-up anual",
+        DateTime? dataRegistro = null,
+        IReadOnlyList<string>? tags = null)
+    {
+        var pet = petId ?? (await CriarPetAsync()).Id;
+
+        var medicamentos = tipo == TipoRegistroClinico.Prescricao
+            ? new List<MedicamentoRequest> { new("Amoxicilina", "250 mg", "12/12h", 7) }
+            : null;
+
+        var request = new CreateRegistroClinicoRequest(
+            pet,
+            tipo,
+            titulo,
+            "Animal ativo, mucosas normocoradas.",
+            "Dra. Ana Souza",
+            dataRegistro ?? new DateTime(2026, 3, 15, 10, 0, 0),
+            ["apatia"],
+            medicamentos,
+            tags ?? ["rotina"]);
+
+        var response = await _client.PostAsJsonAsync("/api/RegistroClinico", request, ApiJson.Options);
+        response.EnsureSuccessStatusCode();
+
+        return (await response.Content.ReadFromJsonAsync<RegistroClinicoResponse>(ApiJson.Options))!;
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using FutureVet.Application.Common;
 using FutureVet.Application.DTOs.Pet;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Services;
@@ -253,5 +254,32 @@ public class PetServiceTests
 
         // Assert
         _repositoryMock.Verify(x => x.DeleteAsync(It.IsAny<Pet>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SearchAsync_FiltroRepassadoAoRepositorio_MapeiaItensComODono()
+    {
+        // Arrange
+        var usuarioId = Guid.NewGuid();
+        var filtro = new PetFiltro { UsuarioId = usuarioId, OrdenarPor = "idade", Direcao = "desc" };
+        var pets = new List<Pet>
+        {
+            TestData.PetValido(nome: "Thor", idade: 9, usuarioId: usuarioId),
+            TestData.PetValido(nome: "Luna", idade: 2, usuarioId: usuarioId)
+        };
+
+        _repositoryMock
+            .Setup(x => x.SearchAsync(filtro))
+            .ReturnsAsync(new PagedResult<Pet>(pets, 2));
+
+        // Act
+        var pagina = await _service.SearchAsync(filtro);
+
+        // Assert
+        Assert.Equal(["Thor", "Luna"], pagina.Itens.Select(p => p.NomePet));
+        Assert.All(pagina.Itens, p => Assert.Equal(usuarioId, p.UsuarioId));
+        Assert.Equal(1, pagina.TotalPaginas);
+        Assert.False(pagina.TemProximaPagina);
+        _repositoryMock.Verify(x => x.SearchAsync(filtro), Times.Once);
     }
 }

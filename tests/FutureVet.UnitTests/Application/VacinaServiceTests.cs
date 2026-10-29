@@ -1,3 +1,4 @@
+using FutureVet.Application.Common;
 using FutureVet.Application.DTOs.Vacina;
 using FutureVet.Application.Interfaces.Repositories;
 using FutureVet.Application.Services;
@@ -232,5 +233,26 @@ public class VacinaServiceTests
 
         // Assert
         _repositoryMock.Verify(x => x.DeleteAsync(It.IsAny<Vacina>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ResultadoComMaisPaginas_IndicaProximaPagina()
+    {
+        // Arrange
+        var filtro = new VacinaFiltro { TamanhoPagina = 1 };
+        var vacina = TestData.VacinaValida();
+
+        _repositoryMock
+            .Setup(x => x.SearchAsync(filtro))
+            .ReturnsAsync(new PagedResult<Vacina>([vacina], 3));
+
+        // Act
+        var pagina = await _service.SearchAsync(filtro);
+
+        // Assert
+        Assert.Equal(vacina.Id, Assert.Single(pagina.Itens).Id);
+        Assert.Equal(3, pagina.TotalPaginas);
+        Assert.True(pagina.TemProximaPagina);
+        Assert.False(pagina.TemPaginaAnterior);
     }
 }

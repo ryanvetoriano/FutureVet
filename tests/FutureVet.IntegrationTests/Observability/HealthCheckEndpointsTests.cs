@@ -123,6 +123,24 @@ public class HealthCheckEndpointsTests
             .ToList();
 
         Assert.Contains("database", nomes);
+        Assert.Contains("mongodb", nomes);
+    }
+
+    [Fact]
+    public async Task HealthCheck_MongoDbDisponivel_IncluiOCheckMongodbHealthy()
+    {
+        // Arrange & Act
+        var response = await _client.GetAsync("/health");
+
+        // Assert
+        var relatorio = await LerRelatorioAsync(response);
+
+        var checkMongo = relatorio.GetProperty("checks")
+            .EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == "mongodb");
+
+        Assert.Equal("Healthy", checkMongo.GetProperty("status").GetString());
+        Assert.Contains("nosql", checkMongo.GetProperty("tags").EnumerateArray().Select(t => t.GetString()));
     }
 
     private static async Task<JsonElement> LerRelatorioAsync(HttpResponseMessage response)
@@ -200,5 +218,61 @@ public class HealthCheckComBancoIndisponivelTests
         Assert.DoesNotContain("SqliteException", corpo);
         Assert.DoesNotContain("at Microsoft.Data.Sqlite", corpo);
         Assert.DoesNotContain("futurevet-diretorio-inexistente", corpo);
+    }
+}
+
+/// <summary>
+/// Cenário de MongoDB indisponível com o Oracle no ar. O MongoDB guarda apenas o prontuário,
+/// então a API deve ficar <c>Degraded</c> — continuando a receber tráfego — e não
+/// <c>Unhealthy</c>.
+/// </summary>
+public class HealthCheckComMongoIndisponivelTests
+    : IClassFixture<UnavailableMongoFactory>
+{
+    private readonly HttpClient _client;
+
+    public HealthCheckComMongoIndisponivelTests(UnavailableMongoFactory factory)
+    {
+        _client = factory.CriarClient();
+    }
+
+    [Fact]
+    public async Task HealthReady_MongoDbIndisponivel_Retorna200ComStatusDegraded()
+    {
+        // Arrange & Act
+        var response = await _client.GetAsync("/health/ready");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var relatorio = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal("Degraded", relatorio.GetProperty("status").GetString());
+
+        var checkMongo = relatorio.GetProperty("checks")
+            .EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == "mongodb");
+
+        Assert.Equal("Degraded", checkMongo.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task HealthCheck_MongoDbIndisponivel_NaoExpoeAConnectionString()
+    {
+        // Arrange & Act
+        var corpo = await (await _client.GetAsync("/health")).Content.ReadAsStringAsync();
+
+        // Assert
+        Assert.DoesNotContain("mongodb://", corpo);
+        Assert.DoesNotContain("127.0.0.1", corpo);
+    }
+
+    [Fact]
+    public async Task GetPets_MongoDbIndisponivel_ContinuaRespondendoPorqueDependeSoDoOracle()
+    {
+        // Arrange & Act
+        var response = await _client.GetAsync("/api/Pet?tamanhoPagina=1");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }

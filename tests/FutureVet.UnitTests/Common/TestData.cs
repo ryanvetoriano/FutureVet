@@ -1,9 +1,11 @@
 using FutureVet.Application.DTOs.Consulta;
 using FutureVet.Application.DTOs.Pet;
+using FutureVet.Application.DTOs.RegistroClinico;
 using FutureVet.Application.DTOs.Usuario;
 using FutureVet.Application.DTOs.Vacina;
 using FutureVet.Domain.Entities;
 using FutureVet.Domain.Enums;
+using FutureVet.Domain.ValueObjects;
 
 namespace FutureVet.UnitTests.Common;
 
@@ -85,4 +87,50 @@ public static class TestData
 
     public static UpdateConsultaRequest UpdateConsultaRequestValido()
         => new(new DateTime(2026, 4, 20), "09:00", "Clínica Norte");
+
+    public static Medicamento MedicamentoValido(string nome = "Amoxicilina")
+        => new(nome, "250 mg", "12/12h", 7);
+
+    public static RegistroClinico RegistroClinicoValido(
+        Guid? petId = null,
+        TipoRegistroClinico tipo = TipoRegistroClinico.Observacao,
+        string titulo = "Check-up anual",
+        string descricao = "Animal ativo, mucosas normocoradas.",
+        DateTime? dataRegistro = null,
+        IEnumerable<string>? sintomas = null,
+        IEnumerable<Medicamento>? medicamentos = null,
+        IEnumerable<string>? tags = null)
+        => new(
+            petId ?? Guid.NewGuid(),
+            tipo,
+            titulo,
+            descricao,
+            "Dra. Ana Souza",
+            dataRegistro ?? new DateTime(2026, 3, 15, 10, 0, 0),
+            sintomas,
+            medicamentos,
+            tags);
+
+    public static CreateRegistroClinicoRequest CreateRegistroClinicoRequestValido(Guid? petId = null)
+        => new(
+            petId ?? Guid.NewGuid(),
+            TipoRegistroClinico.Prescricao,
+            "Otite externa",
+            "Prurido no ouvido esquerdo.",
+            "Dr. Carlos Lima",
+            new DateTime(2026, 5, 20, 14, 30, 0),
+            ["coceira"],
+            [new MedicamentoRequest("Otomax", "5 gotas", "12/12h", 10)],
+            ["ouvido"]);
+
+    public static UpdateRegistroClinicoRequest UpdateRegistroClinicoRequestValido()
+        => new(
+            TipoRegistroClinico.Diagnostico,
+            "Dermatite alérgica",
+            "Confirmada após teste de contato.",
+            "Dra. Ana Souza",
+            new DateTime(2026, 6, 1),
+            ["coceira"],
+            null,
+            ["dermatologia"]);
 }
