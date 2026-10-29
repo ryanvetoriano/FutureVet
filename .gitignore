@@ -16,3 +16,7 @@ coverage/
 *.coverage
 *.coverxml
 coverage.cobertura.xml
+
+# Instrucoes locais do assistente de IA (nao versionadas)
+CLAUDE.md
+CLAUDE.local.md
