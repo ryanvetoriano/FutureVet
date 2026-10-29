@@ -10,8 +10,13 @@ O projeto **FutureVet** foi desenvolvido com o objetivo de criar uma plataforma 
 * 💉 registrar e acompanhar o histórico de vacinas
 * 🩺 agendar e consultar histórico de consultas veterinárias
 * 👤 gerenciar perfis de usuário
+* 📋 manter o **prontuário clínico** de cada pet (observações, exames, diagnósticos, prescrições e procedimentos)
 
 O sistema facilita o controle da saúde animal e garante que nenhuma vacina ou consulta seja esquecida.
+
+A API é **RESTful completa**: listagens com **paginação, ordenação e filtros**, respostas com
+links **HATEOAS** e persistência **poliglota** — dados relacionais no **Oracle** (EF Core) e o
+prontuário, de estrutura flexível, no **MongoDB**.
 
 Além das funcionalidades de negócio, a aplicação foi preparada para operar em produção com
 **monitoramento e observabilidade completos** e é coberta por uma **suíte de testes automatizados**:
@@ -24,6 +29,9 @@ Além das funcionalidades de negócio, a aplicação foi preparada para operar e
 * 🧪 **Testes unitários e de integração** em xUnit, organizados no padrão AAA
 * 🛡️ **Tratamento global de erros** padronizado em ProblemDetails (RFC 9457)
 * 🔐 **Autenticação JWT** protegendo as operações de escrita
+* 📄 **Paginação, ordenação e filtros** em todas as listagens
+* 🔗 **HATEOAS**: links de ações e recursos relacionados em todas as respostas de consulta
+* 🍃 **MongoDB** para o prontuário clínico, com health check próprio e índices
 
 ---
 
@@ -35,17 +43,17 @@ Onde cada critério das sprints está implementado e como verificá-lo.
 
 | Critério | Onde está | Como verificar |
 |---|---|---|
-| GET com mais de 3 rotas parametrizadas | **14 rotas** nos 4 controllers | [Rotas da API](#-rotas-da-api) |
-| POST, PUT, DELETE | 1 de cada nos 4 controllers | Swagger |
+| GET com mais de 3 rotas parametrizadas | **16 rotas** nos 5 controllers | [Rotas da API](#-rotas-da-api) |
+| POST, PUT, DELETE | 1 de cada nos 5 controllers | Swagger |
 | Organização REST | `api/[controller]` + sub-recursos (`/pet/{petId}`) | [Rotas da API](#-rotas-da-api) |
-| 200 / 201 / 204 / 400 / 404 / 401 | `ProducesResponseType` em todas as ações | 111 testes de integração |
+| 200 / 201 / 204 / 400 / 404 / 401 | `ProducesResponseType` em todas as ações | 164 testes de integração |
 | DbContext | `FutureVet.Infrastructure/Persistence/FutureVetContext.cs` | — |
 | Mapeamento das entidades | `Persistence/Configurations/*.cs` (Fluent API) | — |
 | Conexão com Oracle | `GET /health` → check `database` | [Evidências](#-evidências) |
 | Migrations | `Migrations/20260523230247_InitialCreate` | `dotnet ef database update` |
 | Estrutura do banco | FKs em cascata + índices únicos (Email, CPF) | [Banco de Dados](#-banco-de-dados) |
 | Swagger configurado | Interface na raiz (`http://localhost:5189`) | [Evidências](#-evidências) |
-| Endpoints documentados | XML comments → **18 rotas** no OpenAPI | Swagger |
+| Endpoints documentados | XML comments → **22 rotas / 37 operações** no OpenAPI | Swagger e [`docs/swagger.json`](docs/swagger.json) |
 | README | este arquivo | — |
 
 ### Sprint 3 — Observabilidade e testes
@@ -60,6 +68,25 @@ Onde cada critério das sprints está implementado e como verificá-lo.
 | Cobertura, nomenclatura, Fixtures | 15 | [Testes](#-testes) |
 | README | 10 | este arquivo |
 
+### Sprint 4 — Entrega final (consolidação)
+
+| Critério | Pts | Onde está | Como verificar |
+|---|---|---|---|
+| Clean Architecture com separação de camadas | 30 | 4 projetos: `Domain` ← `Application` ← `Infrastructure` / `API` | [Diagrama](#diagrama-da-solução) |
+| SOLID e Clean Code | 30 | Interfaces de repositório na Application e implementações na Infrastructure; um `ResourceLinks<T>` por recurso; um filtro por recurso herdando `PaginacaoQuery` | — |
+| Injeção de dependência | 30 | `AddApplication()`, `AddInfrastructure()` e `AddHateoas()`: cada camada registra as próprias dependências | `Program.cs` |
+| Tratamento global de exceções | 30 | `Errors/GlobalExceptionHandler.cs` (ProblemDetails) | seção Tratamento de Erros |
+| Swagger/OpenAPI atualizado | 20 | XML comments da API **e** da Application (filtros documentados) + [`docs/swagger.json`](docs/swagger.json) exportado | `http://localhost:5189` |
+| Paginação, ordenação e filtros | 20 | `GET` raiz dos 5 recursos — `Application/DTOs/*/*Filtro.cs` | [Paginação](#-paginação-ordenação-e-filtros) |
+| HATEOAS nos endpoints de consulta | 20 | `FutureVet.API/Hateoas/` — links em todo `GET` e na resposta do `POST` | [HATEOAS](#-hateoas) |
+| Autenticação e autorização JWT | 20 | `Auth/` e `[Authorize]` nas escritas | [Autenticação](#-autenticação) |
+| EF Core com migrations (Oracle) | 20 | `Infrastructure/Migrations/` | `dotnet ef database update` |
+| MongoDB integrado (NoSQL) | 20 | `Infrastructure/NoSql/` — prontuário na coleção `registros_clinicos` | [MongoDB](#-mongodb--prontuário-clínico) |
+| Repositórios concretos (padrão Repository) | 20 | `Persistence/Repositories/` (Oracle) e `NoSql/Repositories/` (MongoDB) | — |
+| Health checks, logging estruturado, testes AAA | 20 | Sprint 3 + check `mongodb` | [Observabilidade](#-observabilidade) · [Testes](#-testes) |
+| Cobertura de Domain e Application | 20 | **172** testes unitários (Domain 97,2% · Application 94,0% de linhas) + **164** de integração | [Evidências](#sprint-4--testes-automatizados) |
+| README, diagrama de arquitetura, endpoints | 10 | este arquivo + [`docs/swagger.json`](docs/swagger.json) | [Diagrama](#diagrama-da-solução) · [Rotas](#-rotas-da-api) |
+
 ### Verificação em 3 comandos
 
 ```bash
@@ -71,7 +98,9 @@ dotnet run --project FutureVet.API
 ```
 
 Com a API no ar: Swagger em `http://localhost:5189`, e `/health`, `/health/ready` e `/metrics`
-respondendo sem autenticação.
+respondendo sem autenticação. O MongoDB local sobe com `docker compose up -d mongodb`
+(ver [Como Executar](#-como-executar)); os testes não precisam dele, porque sobem um MongoDB
+próprio.
 
 > Para testar `POST`, `PUT` e `DELETE` no Swagger, cadastre-se em `POST /api/usuario`
 > (público), autentique-se em `POST /api/auth/login` e clique em **Authorize** com o token.
@@ -81,7 +110,102 @@ respondendo sem autenticação.
 
 # 🏗️ Arquitetura
 
-O projeto segue princípios de **Domain-Driven Design (DDD)** e separação de responsabilidades em camadas.
+O projeto segue **Clean Architecture** com princípios de **Domain-Driven Design (DDD)**. As
+dependências apontam sempre para dentro:
+
+| Camada | Depende de | Responsabilidade |
+|---|---|---|
+| `FutureVet.Domain` | — | Entidades, value objects, enums e regras de negócio. Nenhuma dependência de framework ou banco |
+| `FutureVet.Application` | Domain | Casos de uso (services), DTOs, filtros de listagem e **interfaces** dos repositórios |
+| `FutureVet.Infrastructure` | Application, Domain | Implementações concretas dos repositórios: EF Core/Oracle e MongoDB |
+| `FutureVet.API` | Application, Infrastructure | HTTP: controllers, autenticação, HATEOAS, observabilidade e composição da DI |
+
+A Application não sabe que o prontuário está no MongoDB e o restante no Oracle: ela conhece
+apenas `IRegistroClinicoRepository` e `IPetRepository`. Trocar um banco exigiria só uma nova
+implementação na Infrastructure.
+
+O `Program.cs` apenas compõe as camadas — cada uma registra as próprias dependências:
+
+```csharp
+builder.Services.AddApplication();                         // services
+builder.Services.AddInfrastructure(builder.Configuration); // EF Core, MongoDB e repositórios
+builder.Services.AddHateoas();                             // geradores de links
+```
+
+## Diagrama da solução
+
+```mermaid
+flowchart LR
+    cliente["Cliente<br/>app mobile · Swagger · Postman"]
+
+    subgraph API["FutureVet.API"]
+        mw["Middlewares<br/>Correlation ID · request logging<br/>tratamento global de erros"]
+        auth["JWT Bearer"]
+        ctrl["Controllers<br/>Usuario · Pet · Vacina · Consulta<br/>RegistroClinico · Auth"]
+        hateoas["HATEOAS<br/>LinkBuilder · ResourceLinks"]
+        obs["/health · /health/ready<br/>/metrics"]
+    end
+
+    subgraph APP["FutureVet.Application"]
+        svc["Services<br/>casos de uso"]
+        dto["DTOs e filtros<br/>paginação · ordenação"]
+        irepo["Interfaces de<br/>repositório"]
+    end
+
+    subgraph DOM["FutureVet.Domain"]
+        ent["Entidades · Value Objects<br/>regras de negócio"]
+    end
+
+    subgraph INFRA["FutureVet.Infrastructure"]
+        ef["EF Core<br/>FutureVetContext<br/>repositórios relacionais"]
+        mdb["MongoDB.Driver<br/>MongoDbContext<br/>RegistroClinicoRepository"]
+    end
+
+    oracle[("Oracle<br/>TB_USUARIO · TB_PET<br/>TB_VACINA · TB_CONSULTA")]
+    mongo[("MongoDB<br/>registros_clinicos")]
+    tel["Prometheus<br/>coletor OTLP"]
+
+    cliente -->|"HTTP + JWT"| mw --> auth --> ctrl
+    ctrl --> svc
+    ctrl --> hateoas
+    svc --> dto
+    svc --> irepo
+    svc --> ent
+    ef -. implementa .-> irepo
+    mdb -. implementa .-> irepo
+    ef --> oracle
+    mdb --> mongo
+    obs -. ping .-> oracle
+    obs -. ping .-> mongo
+    obs --> tel
+```
+
+### Fluxo de uma requisição entre as duas bases
+
+Criação de um registro no prontuário: o pet vive no Oracle e o registro no MongoDB, e a
+Application é o ponto em que as duas bases se encontram.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant API as RegistroClinicoController
+    participant S as RegistroClinicoService
+    participant D as RegistroClinico (Domain)
+    participant P as PetRepository (Oracle)
+    participant M as RegistroClinicoRepository (MongoDB)
+
+    C->>API: POST /api/RegistroClinico + Bearer token
+    API->>S: CreateAsync(request)
+    S->>D: new RegistroClinico(...)
+    Note over D: valida título, data, tipo<br/>e prescrição com medicamento
+    D-->>S: entidade válida (ou DomainException → 400)
+    S->>P: ExistsAsync(petId)
+    P-->>S: pet existe (senão NotFoundException → 404)
+    S->>M: InsertOneAsync(documento)
+    S-->>API: RegistroClinicoResponse
+    API-->>C: 201 Created + Location + links HATEOAS
+```
 
 Estrutura principal:
 
@@ -89,30 +213,38 @@ Estrutura principal:
 FutureVet
 │
 ├── FutureVet.Domain
-│   ├── Entities
+│   ├── Entities           # Usuario, Pet, Vacina, Consulta, RegistroClinico
+│   ├── ValueObjects       # Medicamento
 │   ├── Enums
 │   ├── Common
 │   └── Exceptions
 │
 ├── FutureVet.Application
-│   ├── DTOs
+│   ├── Common             # PagedResult (página devolvida pelos repositórios)
+│   ├── DTOs               # requests, responses e filtros de listagem por recurso
+│   │   └── Common         # PaginacaoQuery, PagedResponse, ResourceResponse, LinkResponse
 │   ├── Interfaces
 │   │   ├── Repositories
 │   │   └── Services
-│   └── Services
+│   ├── Services
+│   └── DependencyInjection.cs   # AddApplication()
 │
 ├── FutureVet.Infrastructure
-│   └── Persistence
-│       ├── Configurations
-│       ├── Migrations
-│       └── Repositories
+│   ├── Persistence        # Oracle via EF Core
+│   │   ├── Configurations
+│   │   ├── Migrations
+│   │   └── Repositories
+│   ├── NoSql              # MongoDB: contexto, mapeamento BSON e índices
+│   │   └── Repositories
+│   └── DependencyInjection.cs   # AddInfrastructure()
 │
 ├── FutureVet.API
 │   ├── Controllers
 │   ├── Auth               # JwtOptions e emissão do token JWT
 │   ├── Errors             # tratamento global de exceções (ProblemDetails)
-│   ├── Extensions         # AddApplicationHealthChecks, AddSerilogLogging, AddOpenTelemetryConfiguration
-│   ├── HealthChecks       # checks de banco e de serviços externos + writer JSON
+│   ├── Extensions         # health checks, Serilog, OpenTelemetry e AddHateoas
+│   ├── Hateoas            # LinkBuilder e um ResourceLinks<T> por recurso
+│   ├── HealthChecks       # checks de Oracle, MongoDB e serviços externos + writer JSON
 │   └── Middleware         # CorrelationIdMiddleware
 │
 └── tests
@@ -217,6 +349,28 @@ Relacionamento:
 
 ---
 
+## RegistroClinico (MongoDB)
+
+Entrada do prontuário de um pet. É um **documento**: sintomas, medicamentos e tags são listas
+de tamanho livre, embutidas no próprio registro.
+
+Atributos:
+
+* Tipo (Observação, Exame, Diagnóstico, Prescrição, Procedimento)
+* Titulo
+* Descricao
+* Veterinario
+* DataRegistro
+* Sintomas (lista)
+* Medicamentos (lista do value object `Medicamento`: nome, dosagem, frequência, duração)
+* Tags (lista)
+
+Relacionamento:
+
+* pertence a um **Pet** (referenciado por `PetId`; o pet fica no Oracle)
+
+---
+
 # 🛠️ Tecnologias Utilizadas
 
 * C#
@@ -225,12 +379,15 @@ Relacionamento:
 * Entity Framework Core 10
 * Domain-Driven Design (DDD)
 * Oracle Database
+* MongoDB 8 (MongoDB.Driver 3)
 * Swagger / OpenAPI
 * JWT Bearer (autenticação)
 * Serilog (logging estruturado)
 * OpenTelemetry (tracing distribuído e métricas)
 * Prometheus (formato de exposição das métricas)
 * xUnit, Moq e coverlet (testes e cobertura)
+* Mongo2Go (MongoDB real e efêmero nos testes de integração)
+* Docker Compose (MongoDB local)
 * Git / GitHub
 
 ---
@@ -247,6 +404,11 @@ Algumas regras implementadas no domínio:
 * próxima dose da vacina não pode ser **anterior à data de aplicação**
 * hora da consulta deve estar no formato **HH:mm**
 * operações de **escrita** exigem um token JWT válido; leitura e cadastro são públicos
+* registro clínico só pode ser criado para um **pet existente**
+* uma **prescrição** precisa de ao menos um medicamento
+* a data de um registro clínico não pode estar **no futuro**
+* medicamento exige **nome** e **dosagem**; a duração, quando informada, é **maior que zero**
+* tags do prontuário são normalizadas em **minúsculas** e sem repetição
 
 ---
 
@@ -267,8 +429,81 @@ Algumas regras implementadas no domínio:
   * `IPetRepository` / `PetRepository`
   * `IVacinaRepository` / `VacinaRepository`
   * `IConsultaRepository` / `ConsultaRepository`
-* Injeção de dependência registrada no `Program.cs`
+* Injeção de dependência registrada em `AddInfrastructure()` (`FutureVet.Infrastructure/DependencyInjection.cs`)
 * Controllers com endpoints CRUD completos e rotas parametrizadas
+* Listagens paginadas no banco: `Skip`/`Take` viram `OFFSET ... FETCH NEXT` no Oracle, então
+  apenas a página pedida é lida
+
+---
+
+# 🍃 MongoDB — prontuário clínico
+
+O prontuário dos pets fica no **MongoDB**, na coleção `registros_clinicos`. A escolha não é
+decorativa: cada registro tem estrutura variável (uma observação não tem medicamentos; uma
+prescrição pode ter vários) e é sempre lido inteiro. No Oracle isso exigiria três tabelas
+filhas e joins; no MongoDB é um único documento.
+
+```json
+{
+  "_id": UUID("8a0d3c2e-..."),
+  "petId": UUID("6f1c9b7a-..."),
+  "tipo": "Prescricao",
+  "titulo": "Otite externa",
+  "descricao": "Prurido e secreção no ouvido esquerdo.",
+  "veterinario": "Dr. Carlos Lima",
+  "dataRegistro": ISODate("2026-05-20T14:30:00Z"),
+  "sintomas": ["Coceira", "Secreção"],
+  "medicamentos": [
+    { "nome": "Otomax", "dosagem": "5 gotas", "frequencia": "12/12h", "duracaoDias": 10 }
+  ],
+  "tags": ["ouvido", "alergia"],
+  "disponivel": true,
+  "dataCriacao": ISODate("2026-10-29T19:22:13Z"),
+  "dataAtualizacao": ISODate("2026-10-29T19:22:13Z")
+}
+```
+
+## Como foi implementado
+
+| Peça | Arquivo | Papel |
+|---|---|---|
+| Entidade e value object | `Domain/Entities/RegistroClinico.cs`, `Domain/ValueObjects/Medicamento.cs` | Regras de negócio — sem nenhum atributo do driver |
+| Interface do repositório | `Application/Interfaces/Repositories/IRegistroClinicoRepository.cs` | O que a Application precisa, sem saber qual banco atende |
+| Mapeamento BSON | `Infrastructure/NoSql/MongoMapeamentos.cs` | Equivale às `IEntityTypeConfiguration` do EF: nomes em camelCase, enums como texto, GUIDs no padrão UUID |
+| Contexto | `Infrastructure/NoSql/MongoDbContext.cs` | Coleções, `ping` e definição dos índices. Singleton, como recomenda o driver |
+| Repositório concreto | `Infrastructure/NoSql/Repositories/RegistroClinicoRepository.cs` | CRUD, filtros (`Eq`, `AnyEq`, `Regex`, `Gte`/`Lt`), ordenação e paginação (`Skip`/`Limit` + `CountDocuments`) |
+| Índices | `Infrastructure/NoSql/MongoIndexInitializer.cs` | Criados em segundo plano na inicialização: `petId + dataRegistro`, `tipo` e `tags` (multikey) |
+| Health check | `API/HealthChecks/MongoDbHealthCheck.cs` | `ping` real ao servidor em `/health/ready` |
+
+O texto do filtro `texto` é escapado antes de virar expressão regular: a busca é sempre
+literal, e um cliente não consegue injetar uma regex cara no servidor.
+
+## Integração com o Oracle
+
+O `RegistroClinicoService` consulta o `IPetRepository` (Oracle) antes de gravar no MongoDB, e
+um registro para um pet inexistente devolve `404`. Os links HATEOAS ligam as duas bases nos
+dois sentidos: o pet aponta para o seu prontuário (`registros-clinicos`) e cada registro
+aponta de volta para o pet.
+
+## Configuração
+
+```json
+{
+  "ConnectionStrings": { "MongoConnection": "mongodb://localhost:27017" },
+  "MongoDb": { "DatabaseName": "futurevet", "ServerSelectionTimeoutSeconds": 5 }
+}
+```
+
+Para um cluster com credenciais (MongoDB Atlas, por exemplo), a connection string segue o
+mesmo caminho da do Oracle — nunca no repositório:
+
+```bash
+dotnet user-secrets set "ConnectionStrings:MongoConnection" "mongodb+srv://usuario:senha@cluster.mongodb.net" --project FutureVet.API
+```
+
+A API **sobe mesmo sem o MongoDB**: o driver só conecta quando necessário, e os índices são
+criados em segundo plano. Nesse caso, `/health/ready` fica `Degraded` e apenas as rotas de
+`/api/RegistroClinico` falham — usuários, pets, vacinas e consultas seguem funcionando.
 
 ---
 
@@ -277,6 +512,7 @@ Algumas regras implementadas no domínio:
 ## Pré-requisitos
 
 * [.NET 10 SDK](https://dotnet.microsoft.com/download)
+* [Docker](https://www.docker.com/) para o MongoDB local — ou um MongoDB 8 instalado, ou um cluster no MongoDB Atlas
 
 ## 1. Clonar o repositório
 
@@ -306,6 +542,17 @@ Crie ou edite o arquivo `FutureVet.API/appsettings.Development.json` com suas cr
 > dotnet user-secrets set "ConnectionStrings:OracleConnection" "..." --project FutureVet.API
 > ```
 
+### MongoDB
+
+O `appsettings.json` já aponta para `mongodb://localhost:27017`. Para subir o MongoDB local:
+
+```bash
+docker compose up -d mongodb
+```
+
+O `docker-compose.yml` da raiz cria o container `futurevet-mongodb` (imagem `mongo:8.0`) com
+volume persistente. Para usar o Atlas em vez dele, veja [MongoDB](#-mongodb--prontuário-clínico).
+
 ### Chave de assinatura do JWT
 
 Em **Development**, a API sobe mesmo sem a chave: uma chave efêmera é gerada por execução e
@@ -329,7 +576,7 @@ dotnet user-secrets set "Jwt:SigningKey" "$([Convert]::ToBase64String((1..48|%{G
 
 | Arquivo | Uso |
 |---------|-----|
-| `appsettings.json` | Base: Serilog (console + arquivo), OpenTelemetry, health checks e JWT (Issuer/Audience/expiração). **Sem segredos** |
+| `appsettings.json` | Base: Serilog (console + arquivo), OpenTelemetry, health checks, JWT (Issuer/Audience/expiração) e MongoDB local. **Sem segredos** |
 | `appsettings.Development.json` | Credenciais locais. **Não versionado** |
 | `appsettings.Testing.json` | Ambiente usado pelos testes de integração: sem dependências externas |
 
@@ -388,6 +635,10 @@ ConnectionStrings__OracleConnection="User Id=SEU_RM;Password=SUA_SENHA;Data Sour
 O schema precisa estar aplicado (passo 3). Sem a connection string, os testes de integração
 falham com uma mensagem explicando exatamente o que configurar — eles **não são silenciados
 nem ignorados**.
+
+O **MongoDB não precisa de configuração** para os testes: cada host de teste sobe um `mongod`
+real e efêmero com o [Mongo2Go](https://github.com/Mongo2Go/Mongo2Go), cujos binários do
+MongoDB 8 vêm no próprio pacote NuGet — sem Docker e sem instalação.
 
 ## 6. Executar os testes
 
@@ -466,6 +717,9 @@ ou pela variável de ambiente `Jwt__SigningKey`.
 # 📋 Rotas da API
 
 > 🔒 = exige `Authorization: Bearer <token>`
+>
+> A especificação OpenAPI completa está exportada em [`docs/swagger.json`](docs/swagger.json)
+> (OpenAPI 3.0) — pode ser importada direto no Postman ou no Insomnia.
 
 ### Auth — `/api/auth`
 
@@ -477,7 +731,7 @@ ou pela variável de ambiente `Jwt__SigningKey`.
 
 | Método | Rota | Descrição | Status |
 |--------|------|-----------|--------|
-| GET | `/api/usuario` | Lista todos os usuários | 200 |
+| GET | `/api/usuario` | Lista usuários — paginado; filtros `nome`, `email`; ordena por `nome`, `email`, `dataCriacao` | 200 / 400 |
 | GET | `/api/usuario/{id}` | Busca usuário por ID | 200 / 404 |
 | GET | `/api/usuario/email/{email}` | Busca usuário por e-mail | 200 / 400 / 404 |
 | GET | `/api/usuario/nome/{nome}` | Busca usuários por nome (parcial) | 200 / 400 |
@@ -489,7 +743,7 @@ ou pela variável de ambiente `Jwt__SigningKey`.
 
 | Método | Rota | Descrição | Status |
 |--------|------|-----------|--------|
-| GET | `/api/pet` | Lista todos os pets | 200 |
+| GET | `/api/pet` | Lista pets — paginado; filtros `nome`, `especie`, `tamanho`, `usuarioId`, `idadeMinima`, `idadeMaxima`; ordena por `nome`, `especie`, `idade`, `peso`, `dataCriacao` | 200 / 400 |
 | GET | `/api/pet/{id}` | Busca pet por ID | 200 / 404 |
 | GET | `/api/pet/nome/{nome}` | Busca pets por nome (parcial) | 200 / 400 |
 | GET | `/api/pet/especie/{especie}` | Busca pets por espécie (1=Cão, 2=Gato, 3=Coelho, 4=Outro) | 200 / 400 |
@@ -502,7 +756,7 @@ ou pela variável de ambiente `Jwt__SigningKey`.
 
 | Método | Rota | Descrição | Status |
 |--------|------|-----------|--------|
-| GET | `/api/vacina` | Lista todas as vacinas | 200 |
+| GET | `/api/vacina` | Lista vacinas — paginado; filtros `petId`, `nome`, `aplicacaoInicio`, `aplicacaoFim`, `proximaDoseAte`; ordena por `proximaDose`, `nome`, `dataAplicacao` | 200 / 400 |
 | GET | `/api/vacina/{id}` | Busca vacina por ID | 200 / 404 |
 | GET | `/api/vacina/pet/{petId}` | Lista vacinas de um pet | 200 |
 | GET | `/api/vacina/proxima-dose/{data}` | Vacinas com próxima dose até a data (yyyy-MM-dd) | 200 / 400 |
@@ -514,7 +768,7 @@ ou pela variável de ambiente `Jwt__SigningKey`.
 
 | Método | Rota | Descrição | Status |
 |--------|------|-----------|--------|
-| GET | `/api/consulta` | Lista todas as consultas | 200 |
+| GET | `/api/consulta` | Lista consultas — paginado; filtros `petId`, `tipo`, `local`, `dataInicio`, `dataFim`; ordena por `data`, `tipo`, `local` | 200 / 400 |
 | GET | `/api/consulta/{id}` | Busca consulta por ID | 200 / 404 |
 | GET | `/api/consulta/pet/{petId}` | Lista consultas de um pet | 200 |
 | GET | `/api/consulta/data/{data}` | Lista consultas por data (yyyy-MM-dd) | 200 / 400 |
@@ -522,6 +776,123 @@ ou pela variável de ambiente `Jwt__SigningKey`.
 | POST | `/api/consulta` | 🔒 Agenda uma nova consulta | 201 / 400 / 401 |
 | PUT | `/api/consulta/{id}` | 🔒 Atualiza dados da consulta | 204 / 400 / 401 / 404 |
 | DELETE | `/api/consulta/{id}` | 🔒 Remove uma consulta | 204 / 401 / 404 |
+
+### RegistroClinico — `/api/registroclinico` (MongoDB)
+
+| Método | Rota | Descrição | Status |
+|--------|------|-----------|--------|
+| GET | `/api/registroclinico` | Lista registros — paginado; filtros `petId`, `tipo`, `texto`, `tag`, `dataInicio`, `dataFim`; ordena por `dataRegistro` (padrão, mais recentes primeiro), `titulo`, `tipo` | 200 / 400 |
+| GET | `/api/registroclinico/{id}` | Busca registro por ID | 200 / 404 |
+| GET | `/api/registroclinico/pet/{petId}` | Prontuário completo de um pet | 200 |
+| POST | `/api/registroclinico` | 🔒 Cria um registro no prontuário | 201 / 400 / 401 / 404 |
+| PUT | `/api/registroclinico/{id}` | 🔒 Substitui o conteúdo do registro | 204 / 400 / 401 / 404 |
+| DELETE | `/api/registroclinico/{id}` | 🔒 Remove um registro | 204 / 401 / 404 |
+
+---
+
+# 📄 Paginação, ordenação e filtros
+
+O `GET` raiz de cada recurso aceita os mesmos parâmetros de paginação e ordenação, mais os
+filtros do próprio recurso (tabelas acima):
+
+| Parâmetro | Padrão | Regra |
+|---|---|---|
+| `pagina` | `1` | A partir de 1 |
+| `tamanhoPagina` | `10` | De 1 a 50 |
+| `ordenarPor` | varia por recurso | Apenas os campos listados na rota; sem diferenciar maiúsculas |
+| `direcao` | `asc` (`desc` no prontuário) | `asc` ou `desc` |
+
+Filtros de texto ignoram maiúsculas/minúsculas e aceitam trechos (`nome=thor` encontra
+"Thor Odinson"). Filtros de data comparam dias inteiros: `dataFim=2026-03-31` inclui o dia 31
+todo. A paginação acontece **no banco** — no Oracle com `OFFSET ... FETCH NEXT`, no MongoDB com
+`skip`/`limit` — e o desempate é sempre pelo ID, para que um registro nunca apareça em duas
+páginas.
+
+```
+GET /api/Pet?especie=2&idadeMinima=3&ordenarPor=peso&direcao=desc&pagina=1&tamanhoPagina=10
+GET /api/Consulta?petId={id}&dataInicio=2026-03-01&dataFim=2026-03-31
+GET /api/RegistroClinico?petId={id}&tipo=4&tag=alergia
+```
+
+Parâmetros inválidos devolvem `400` com `ValidationProblemDetails`, apontando o campo e os
+valores aceitos:
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": {
+    "OrdenarPor": [ "Campo de ordenação inválido. Valores aceitos: nome, especie, idade, peso, dataCriacao." ]
+  }
+}
+```
+
+A validação fica nos próprios filtros (`PaginacaoQuery` implementa `IValidatableObject`), então
+roda no model binding, antes de chegar ao service.
+
+---
+
+# 🔗 HATEOAS
+
+Toda resposta de consulta — e a do `POST` — traz `links` com as ações possíveis e os recursos
+relacionados. O cliente navega pela API sem montar URLs.
+
+```json
+{
+  "id": "6f1c9b7a-...",
+  "nomePet": "Thor",
+  "especie": 1,
+  "raca": "Labrador",
+  "idade": 3,
+  "tamanho": 3,
+  "peso": 32.5,
+  "usuarioId": "3f2b8d10-...",
+  "links": [
+    { "href": "http://localhost:5189/api/Pet/6f1c9b7a-...", "rel": "self", "method": "GET" },
+    { "href": "http://localhost:5189/api/Pet/6f1c9b7a-...", "rel": "update", "method": "PUT" },
+    { "href": "http://localhost:5189/api/Pet/6f1c9b7a-...", "rel": "delete", "method": "DELETE" },
+    { "href": "http://localhost:5189/api/Usuario/3f2b8d10-...", "rel": "usuario", "method": "GET" },
+    { "href": "http://localhost:5189/api/Vacina/pet/6f1c9b7a-...", "rel": "vacinas", "method": "GET" },
+    { "href": "http://localhost:5189/api/Consulta/pet/6f1c9b7a-...", "rel": "consultas", "method": "GET" },
+    { "href": "http://localhost:5189/api/RegistroClinico/pet/6f1c9b7a-...", "rel": "registros-clinicos", "method": "GET" }
+  ]
+}
+```
+
+Nas listagens, cada item traz os próprios links e a página traz a navegação. Os links de
+página **preservam filtros, ordenação e tamanho**, mudando apenas `pagina`:
+
+```json
+{
+  "itens": [ { "id": "...", "nomePet": "Luna", "links": [ ... ] } ],
+  "pagina": 1,
+  "tamanhoPagina": 2,
+  "totalItens": 3,
+  "totalPaginas": 2,
+  "temPaginaAnterior": false,
+  "temProximaPagina": true,
+  "links": [
+    { "href": "http://localhost:5189/api/Pet?usuarioId=...&tamanhoPagina=2&pagina=1", "rel": "self", "method": "GET" },
+    { "href": "http://localhost:5189/api/Pet?usuarioId=...&tamanhoPagina=2&pagina=1", "rel": "first", "method": "GET" },
+    { "href": "http://localhost:5189/api/Pet?usuarioId=...&tamanhoPagina=2&pagina=2", "rel": "next", "method": "GET" },
+    { "href": "http://localhost:5189/api/Pet?usuarioId=...&tamanhoPagina=2&pagina=2", "rel": "last", "method": "GET" },
+    { "href": "http://localhost:5189/api/Pet", "rel": "create", "method": "POST" }
+  ]
+}
+```
+
+| Recurso | Links |
+|---|---|
+| Usuario | `self`, `update`, `delete`, `pets` |
+| Pet | `self`, `update`, `delete`, `usuario`, `vacinas`, `consultas`, `registros-clinicos` |
+| Vacina / Consulta | `self`, `update`, `delete`, `pet` |
+| RegistroClinico | `self`, `update`, `delete`, `pet`, `prontuario` |
+| Página | `self`, `first`, `prev`*, `next`*, `last`, `create` — *só quando existem |
+
+As URLs saem da tabela de rotas do ASP.NET Core (`LinkGenerator`), e não de strings fixas: se
+uma rota mudar, os links acompanham. Cada recurso tem a sua classe em `FutureVet.API/Hateoas/`
+(`PetLinks`, `UsuarioLinks`...), e os controllers dependem apenas da abstração
+`ResourceLinks<T>`.
 
 ---
 
@@ -573,6 +944,26 @@ ou pela variável de ambiente `Jwt__SigningKey`.
 }
 ```
 
+### Registrar no prontuário (MongoDB)
+```json
+{
+  "petId": "00000000-0000-0000-0000-000000000000",
+  "tipo": 4,
+  "titulo": "Otite externa",
+  "descricao": "Prurido e secreção no ouvido esquerdo.",
+  "veterinario": "Dr. Carlos Lima",
+  "dataRegistro": "2026-05-20T14:30:00",
+  "sintomas": ["Coceira", "Secreção"],
+  "medicamentos": [
+    { "nome": "Otomax", "dosagem": "5 gotas", "frequencia": "12/12h", "duracaoDias": 10 }
+  ],
+  "tags": ["ouvido", "alergia"]
+}
+```
+
+`tipo`: 1=Observação, 2=Exame, 3=Diagnóstico, 4=Prescrição (exige ao menos um medicamento),
+5=Procedimento.
+
 ---
 
 # 🗄️ Banco de Dados
@@ -585,6 +976,12 @@ As tabelas são criadas via migrations do EF Core:
 | `TB_PET` | Dados dos pets (FK → TB_USUARIO) |
 | `TB_VACINA` | Histórico de vacinas (FK → TB_PET) |
 | `TB_CONSULTA` | Consultas veterinárias (FK → TB_PET) |
+
+E no MongoDB:
+
+| Coleção | Descrição |
+|--------|-----------|
+| `registros_clinicos` | Prontuário dos pets — documentos com sintomas, medicamentos e tags embutidos; `petId` referencia `TB_PET` |
 
 ---
 
@@ -601,7 +998,7 @@ Implementados com `Microsoft.Extensions.Diagnostics.HealthChecks`.
 |----------|-----------|----------------|--------|
 | `GET /health` | Visão completa da saúde da aplicação | Todos os checks registrados | 200 (Healthy/Degraded) / 503 (Unhealthy) |
 | `GET /health/live` | **Liveness** — o processo está vivo? | Apenas o check `api`. Não toca em dependências externas, de propósito: uma falha de banco não deve fazer o orquestrador matar um processo saudável | 200 / 503 |
-| `GET /health/ready` | **Readiness** — a aplicação pode receber tráfego? | `api` + `database` + serviços externos configurados | 200 (Healthy/Degraded) / 503 (Unhealthy) |
+| `GET /health/ready` | **Readiness** — a aplicação pode receber tráfego? | `api` + `database` + `mongodb` + serviços externos configurados | 200 (Healthy/Degraded) / 503 (Unhealthy) |
 
 ### Checks registrados
 
@@ -609,10 +1006,12 @@ Implementados com `Microsoft.Extensions.Diagnostics.HealthChecks`.
 |------|--------|-------------|
 | `api` | `live`, `ready` | O processo está em execução e servindo requisições |
 | `database` | `ready`, `db` | Conectividade **real** com o Oracle via `DbContext.Database.CanConnectAsync()` (abre uma conexão de fato); timeout de 10 s |
+| `mongodb` | `ready`, `db`, `nosql` | Comando `ping` no MongoDB. Falha resulta em **`Degraded`**, não `Unhealthy`: o MongoDB guarda só o prontuário, e o restante da API continua atendendo |
 | `conectividade-externa` | `ready`, `external` | Dependência HTTP externa declarada em `HealthChecks:ExternalServices`, consultada com `IHttpClientFactory` e timeout próprio. Mais entradas podem ser adicionadas por configuração |
 
-> O provider de banco é detectado a partir do `DbContext` já configurado. A aplicação usa
-> **Oracle** exclusivamente — nenhum check de MongoDB é registrado.
+> O check `database` detecta o provider a partir do `DbContext` já configurado (Oracle). O
+> check `mongodb` usa o mesmo `MongoDbContext` dos repositórios, portanto testa exatamente o
+> servidor e o banco que a aplicação usa.
 
 ### Serviços externos
 
@@ -668,6 +1067,13 @@ tráfego) em vez de `Unhealthy`. Nunca inclua credenciais ou tokens na `Url`.
       "description": "Conexão com o banco de dados estabelecida (Oracle.EntityFrameworkCore).",
       "duration": "00:00:00.0051200",
       "tags": [ "ready", "db" ]
+    },
+    {
+      "name": "mongodb",
+      "status": "Healthy",
+      "description": "MongoDB respondeu ao ping (banco futurevet).",
+      "duration": "00:00:00.0031870",
+      "tags": [ "ready", "db", "nosql" ]
     },
     {
       "name": "conectividade-externa",
@@ -856,6 +1262,7 @@ O relatório em formato Cobertura é gravado em
 
 > Os testes **unitários** não dependem de nada externo. Os testes de **integração** exigem a
 > connection string do Oracle configurada — ver [passo 5](#5-configurar-o-oracle-usado-pelos-testes).
+> O MongoDB dos testes sobe sozinho (Mongo2Go).
 
 ## Estrutura
 
@@ -863,12 +1270,12 @@ O relatório em formato Cobertura é gravado em
 tests
 ├── FutureVet.UnitTests
 │   ├── Common          # TestData: fábricas de dados válidos para o Arrange
-│   ├── Domain          # regras das entidades (Usuario, Pet, Vacina, Consulta)
-│   └── Application     # Application Services com repositórios mockados
+│   ├── Domain          # regras das entidades (Usuario, Pet, Vacina, Consulta, RegistroClinico, Medicamento)
+│   └── Application     # services com repositórios mockados + regras de paginação e filtros
 │
 └── FutureVet.IntegrationTests
-    ├── Fixtures        # CustomWebApplicationFactory (Oracle), ApiFixture, ApiTestData
-    ├── Endpoints       # CRUD completo dos 4 controllers via HTTP real
+    ├── Fixtures        # CustomWebApplicationFactory (Oracle + MongoDB efêmero), ApiFixture, ApiTestData
+    ├── Endpoints       # CRUD dos 5 controllers, paginação/filtros e HATEOAS via HTTP real
     └── Observability   # health checks, correlation ID, métricas, tracing, erros, Swagger
 ```
 
@@ -883,7 +1290,11 @@ tests
 * **Application** — casos de sucesso, de erro e de borda dos Application Services: criação
   válida, busca existente e inexistente, atualização de entidade ausente
   (`NotFoundException`), regra de domínio violada durante a atualização, exclusão, e coleções
-  vazias.
+  vazias. O `RegistroClinicoService` é testado com os **dois** repositórios mockados, incluindo
+  a recusa de um registro para pet inexistente.
+* **Paginação e filtros** — limites de `pagina` e `tamanhoPagina`, campos de ordenação aceitos
+  e recusados, direção, intervalos de datas e idades invertidos, enums fora do domínio e o
+  cálculo de `totalPaginas`.
 
 Os mocks são usados **apenas para as dependências externas à unidade testada** — os
 repositórios. As regras de domínio são exercitadas de verdade, nunca simuladas. Os mocks usam
@@ -905,8 +1316,14 @@ var response = await _client.GetAsync("/api/Pet");
 
 Cenários cobertos: `200` em listagens e buscas, `201` com header `Location` na criação,
 `204` em atualização e exclusão, `400` para payloads que violam regras de domínio e para
-parâmetros de rota mal formados, `404` para recursos inexistentes e rotas desconhecidas,
-`503` nos health checks quando uma dependência está fora do ar.
+parâmetros de rota ou de listagem mal formados, `404` para recursos inexistentes e rotas
+desconhecidas, `503` nos health checks quando o Oracle está fora do ar e `Degraded` quando o
+MongoDB está fora do ar.
+
+Na Sprint 4 entraram também: paginação real nas duas bases (páginas, totais, ordenação,
+filtros combinados), links HATEOAS **seguidos de verdade** pelo teste (o link `next` leva à
+última página, o link `vacinas` lista as vacinas do pet) e o CRUD completo do prontuário no
+MongoDB.
 
 ### Banco de dados nos testes
 
@@ -922,6 +1339,12 @@ nunca de um arquivo versionado.
 
 **O schema não é criado nem apagado pelos testes.** Ele já existe, aplicado pelas migrations.
 Os testes apenas inserem e removem os próprios registros.
+
+O **MongoDB** segue o mesmo princípio — um servidor de verdade, nunca um substituto —, mas
+sem depender de infraestrutura externa: a `CustomWebApplicationFactory` sobe um `mongod` 8
+efêmero com o Mongo2Go, aponta `ConnectionStrings:MongoConnection` para ele e o encerra (com o
+diretório de dados) no `Dispose`. Cada execução começa com o banco vazio, então os registros
+clínicos não precisam de limpeza.
 
 #### Isolamento e limpeza dos dados
 
@@ -999,6 +1422,7 @@ Post_EmailSemArroba_Retorna400ComProblemDetails
 | **`ICollectionFixture<ApiFixture>`** | Todas as classes de teste de endpoint e de observabilidade | Subir o host da API e abrir a conexão com o Oracle é caro. A collection fixture faz isso **uma única vez por execução**, e não a cada classe |
 | **`IClassFixture<UnavailableDatabaseFactory>`** | `HealthCheckComBancoIndisponivelTests` | Precisa de um host apontando para um **endereço Oracle onde nada escuta** — configuração diferente da compartilhada, e de interesse de uma única classe |
 | **`IClassFixture<ExternalServiceIndisponivelFactory>`** e **`<ExternalServiceOpcionalFactory>`** | `ExternalServiceHealthCheckTests` | Hosts com um serviço HTTP externo declarado em configuração, obrigatório e opcional |
+| **`IClassFixture<UnavailableMongoFactory>`** | `HealthCheckComMongoIndisponivelTests` | MongoDB apontando para uma porta local onde nada escuta, com o Oracle no ar: prova que a API fica `Degraded` e continua servindo o que depende só do Oracle |
 
 A `ApiFixture` implementa `IAsyncLifetime` e concentra todo o ciclo de vida da suíte:
 valida a conectividade com o Oracle antes do primeiro teste (uma falha aqui vira **uma**
@@ -1158,6 +1582,44 @@ Cobertura por camada, coletada com `dotnet test --collect:"XPlat Code Coverage"`
 
 Conforme o enunciado, a cobertura se concentra em **Domain** e **Application**, onde
 estão as regras de negócio.
+
+---
+
+## Sprint 4 — Testes automatizados
+
+Saída real de `dotnet test` na entrega final, com os testes de integração rodando contra o
+Oracle da FIAP e contra um MongoDB 8 efêmero (Mongo2Go):
+
+```text
+Aprovado!  – Com falha:     0, Aprovado:   172, Ignorado:     0, Total:   172, Duração: 484 ms - FutureVet.UnitTests.dll (net10.0)
+Aprovado!  – Com falha:     0, Aprovado:   164, Ignorado:     0, Total:   164, Duração: 1 m 18 s - FutureVet.IntegrationTests.dll (net10.0)
+```
+
+**336 testes, 0 falhas, 0 ignorados** — eram 206 na Sprint 3.
+
+Cobertura por camada, coletada com `dotnet test --collect:"XPlat Code Coverage"`:
+
+| Projeto de teste | Camada | Linhas | Branches |
+|---|---|---:|---:|
+| UnitTests | `FutureVet.Domain` | **97,2%** | 98,6% |
+| UnitTests | `FutureVet.Application` | **94,0%** | 79,1% |
+| IntegrationTests | `FutureVet.Application` | **98,8%** | 75,5% |
+| IntegrationTests | `FutureVet.Domain` | 90,6% | 73,0% |
+| IntegrationTests | `FutureVet.API` | 59,0% | 32,0% |
+| IntegrationTests | `FutureVet.Infrastructure` | 47,6% | 70,5% |
+
+O que entrou na Sprint 4:
+
+| Suíte | Classe | Cobre |
+|---|---|---|
+| Unit | `RegistroClinicoTests`, `MedicamentoTests` | Regras do prontuário: prescrição sem medicamento, data no futuro, tipo inválido, normalização de tags e sintomas, atualização atômica |
+| Unit | `RegistroClinicoServiceTests` | Service com os repositórios do Oracle e do MongoDB mockados; pet inexistente não grava |
+| Unit | `PaginacaoTests` | Limites, ordenação, direção, intervalos e enums dos filtros; cálculo de páginas |
+| Unit | `AuthServiceTests`, `DependencyInjectionTests` | Login (credencial válida, senha errada, e-mail inexistente) e registro da camada na DI |
+| Integração | `RegistroClinicoEndpointsTests` | CRUD do prontuário no MongoDB real, filtros por tag/texto/tipo e paginação |
+| Integração | `PaginacaoEndpointsTests` | Páginas, totais, ordenação e filtros combinados no Oracle; `400` para parâmetros inválidos |
+| Integração | `HateoasEndpointsTests` | Links presentes, corretos e **navegáveis** (o teste segue `next` e `vacinas`) |
+| Integração | `HealthCheckComMongoIndisponivelTests` | MongoDB fora do ar → `Degraded`, com as rotas do Oracle respondendo |
 
 ---
 

@@ -1,0 +1,3154 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "FutureVet API",
+    "description": "API para gerenciamento veterinário: usuários, pets, vacinas, consultas e o\r\nprontuário clínico dos pets.\r\n\r\n**Persistência:** usuários, pets, vacinas e consultas ficam no **Oracle**\r\n(EF Core); o prontuário (`/api/RegistroClinico`) fica no **MongoDB**.\r\n\r\n**Listagens:** o `GET` raiz de cada recurso aceita paginação (`pagina`,\r\n`tamanhoPagina`), ordenação (`ordenarPor`, `direcao=asc|desc`) e filtros\r\npróprios do recurso.\r\n\r\n**HATEOAS:** toda resposta de consulta traz `links` com as ações e os recursos\r\nrelacionados (`self`, `update`, `delete`, `pet`, `vacinas`...) e, nas listagens,\r\na navegação entre páginas (`first`, `prev`, `next`, `last`).\r\n\r\n**Como testar as operações protegidas (POST, PUT e DELETE):**\r\n\r\n1. Crie um usuário em `POST /api/Usuario` — este endpoint é público.\r\n2. Autentique-se em `POST /api/Auth/login` com o mesmo e-mail e senha e copie o `token` da resposta.\r\n3. Clique em **Authorize** (no topo à direita), cole apenas o token e confirme.\r\n\r\nAs operações marcadas com 🔒 exigem esse passo. Todas as consultas (`GET`) são\r\npúblicas e podem ser testadas sem autenticação.\r\n\r\n**Observabilidade:** `/health`, `/health/live`, `/health/ready` e `/metrics`\r\n(formato Prometheus) também são públicos.",
+    "contact": {
+      "name": "FutureVet",
+      "email": "contato@futureVet.com"
+    },
+    "version": "v1"
+  },
+  "paths": {
+    "/api/Auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Autentica um usuário e devolve um token JWT.",
+        "requestBody": {
+          "description": "E-mail e senha do usuário.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Autenticado com sucesso. O token deve ser enviado no header Authorization: Bearer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "E-mail ou senha incorretos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Consulta": {
+      "get": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Lista consultas com paginação, ordenação e filtros.",
+        "description": "Exemplo: `GET /api/Consulta?dataInicio=2026-03-01&dataFim=2026-03-31&tipo=rotina&ordenarPor=data`\r\nlista as consultas de rotina de março em ordem cronológica.",
+        "parameters": [
+          {
+            "name": "petId",
+            "in": "query",
+            "description": "ID do pet atendido.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "description": "Parte do tipo da consulta (ex.: Rotina), sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "local",
+            "in": "query",
+            "description": "Parte do local da consulta, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dataInicio",
+            "in": "query",
+            "description": "Consultas a partir desta data (yyyy-MM-dd), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dataFim",
+            "in": "query",
+            "description": "Consultas até esta data (yyyy-MM-dd), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanhoPagina",
+            "in": "query",
+            "description": "Quantidade de itens por página, de 1 a 50.",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Os valores aceitos variam por recurso.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "Direção da ordenação: `asc` ou `desc`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de consultas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponsePagedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro de paginação, ordenação ou filtro inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "post": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Cria uma nova consulta.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConsultaRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConsultaRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConsultaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Consulta criada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Consulta/{id}": {
+      "get": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Busca uma consulta pelo ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID da consulta.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consulta encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulta não encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "put": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Atualiza os dados de uma consulta.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID da consulta.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Novos dados da consulta.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConsultaRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConsultaRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConsultaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Atualizado com sucesso."
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulta não encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Remove uma consulta.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID da consulta.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Removido com sucesso."
+          },
+          "404": {
+            "description": "Consulta não encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Consulta/pet/{petId}": {
+      "get": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Lista todas as consultas de um pet.",
+        "parameters": [
+          {
+            "name": "petId",
+            "in": "path",
+            "description": "ID do pet.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de consultas do pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsultaResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Consulta/data/{data}": {
+      "get": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Lista consultas por data (formato: yyyy-MM-dd).",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "path",
+            "description": "Data da consulta.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de consultas na data informada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsultaResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Consulta/tipo/{tipo}": {
+      "get": {
+        "tags": [
+          "Consulta"
+        ],
+        "summary": "Lista consultas por tipo.",
+        "parameters": [
+          {
+            "name": "tipo",
+            "in": "path",
+            "description": "Tipo da consulta (ex: Rotina, Emergência).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de consultas do tipo informado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsultaResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Tipo inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Pet": {
+      "get": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Lista pets com paginação, ordenação e filtros.",
+        "description": "Exemplo: `GET /api/Pet?especie=1&idadeMinima=2&ordenarPor=peso&direcao=desc&pagina=1&tamanhoPagina=10`.\r\nA resposta traz os links de navegação entre páginas (`first`, `prev`,\r\n`next`, `last`) e, em cada pet, os links das ações e recursos relacionados.",
+        "parameters": [
+          {
+            "name": "nome",
+            "in": "query",
+            "description": "Parte do nome do pet, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "especie",
+            "in": "query",
+            "description": "Espécie: 1=Cão, 2=Gato, 3=Coelho, 4=Outro.",
+            "schema": {
+              "$ref": "#/components/schemas/EspeciePet"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Porte: 1=Pequeno, 2=Médio, 3=Grande.",
+            "schema": {
+              "$ref": "#/components/schemas/PortePet"
+            }
+          },
+          {
+            "name": "usuarioId",
+            "in": "query",
+            "description": "ID do dono do pet.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "idadeMinima",
+            "in": "query",
+            "description": "Idade mínima, inclusive.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "idadeMaxima",
+            "in": "query",
+            "description": "Idade máxima, inclusive.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanhoPagina",
+            "in": "query",
+            "description": "Quantidade de itens por página, de 1 a 50.",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Os valores aceitos variam por recurso.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "Direção da ordenação: `asc` ou `desc`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de pets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PetResponsePagedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro de paginação, ordenação ou filtro inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "post": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Cria um novo pet.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePetRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePetRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Pet criado com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Pet/{id}": {
+      "get": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Busca um pet pelo ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do pet.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pet encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pet não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "put": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Atualiza os dados de um pet.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do pet.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Novos dados do pet.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePetRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePetRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Atualizado com sucesso."
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pet não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Remove um pet.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do pet.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Removido com sucesso."
+          },
+          "404": {
+            "description": "Pet não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Pet/nome/{nome}": {
+      "get": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Busca pets pelo nome (busca parcial).",
+        "parameters": [
+          {
+            "name": "nome",
+            "in": "path",
+            "description": "Nome ou parte do nome do pet.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de pets encontrados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PetResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nome inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Pet/especie/{especie}": {
+      "get": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Busca pets por espécie.",
+        "parameters": [
+          {
+            "name": "especie",
+            "in": "path",
+            "description": "Espécie do pet: Cao=1, Gato=2, Coelho=3, Outro=4.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de pets da espécie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PetResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Espécie inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Pet/usuario/{usuarioId}": {
+      "get": {
+        "tags": [
+          "Pet"
+        ],
+        "summary": "Lista todos os pets de um usuário.",
+        "parameters": [
+          {
+            "name": "usuarioId",
+            "in": "path",
+            "description": "ID do usuário dono dos pets.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de pets do usuário.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PetResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/RegistroClinico": {
+      "get": {
+        "tags": [
+          "RegistroClinico"
+        ],
+        "summary": "Lista registros clínicos com paginação, ordenação e filtros.",
+        "description": "Exemplo: `GET /api/RegistroClinico?petId={id}&tipo=4&tag=alergia&texto=coceira`.\r\nSem `ordenarPor`, os registros vêm do mais recente para o mais antigo.",
+        "parameters": [
+          {
+            "name": "petId",
+            "in": "query",
+            "description": "ID do pet.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "description": "Tipo: 1=Observação, 2=Exame, 3=Diagnóstico, 4=Prescrição, 5=Procedimento.",
+            "schema": {
+              "$ref": "#/components/schemas/TipoRegistroClinico"
+            }
+          },
+          {
+            "name": "texto",
+            "in": "query",
+            "description": "Texto procurado no título e na descrição, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Registros marcados com esta tag.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dataInicio",
+            "in": "query",
+            "description": "Registros a partir desta data (yyyy-MM-dd), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dataFim",
+            "in": "query",
+            "description": "Registros até esta data (yyyy-MM-dd), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanhoPagina",
+            "in": "query",
+            "description": "Quantidade de itens por página, de 1 a 50.",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Os valores aceitos variam por recurso.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "Direção da ordenação: `asc` ou `desc`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de registros clínicos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistroClinicoResponsePagedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro de paginação, ordenação ou filtro inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "post": {
+        "tags": [
+          "RegistroClinico"
+        ],
+        "summary": "Cria um registro no prontuário de um pet.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRegistroClinicoRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRegistroClinicoRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRegistroClinicoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Registro criado com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistroClinicoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos (ex.: prescrição sem medicamento).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pet não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/RegistroClinico/{id}": {
+      "get": {
+        "tags": [
+          "RegistroClinico"
+        ],
+        "summary": "Busca um registro clínico pelo ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do registro.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registro encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistroClinicoResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "put": {
+        "tags": [
+          "RegistroClinico"
+        ],
+        "summary": "Substitui o conteúdo de um registro clínico.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do registro.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Novo conteúdo do registro.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRegistroClinicoRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRegistroClinicoRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRegistroClinicoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Atualizado com sucesso."
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "RegistroClinico"
+        ],
+        "summary": "Remove um registro clínico.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do registro.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Removido com sucesso."
+          },
+          "404": {
+            "description": "Registro não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/RegistroClinico/pet/{petId}": {
+      "get": {
+        "tags": [
+          "RegistroClinico"
+        ],
+        "summary": "Prontuário completo de um pet, do registro mais recente para o mais antigo.",
+        "parameters": [
+          {
+            "name": "petId",
+            "in": "path",
+            "description": "ID do pet.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registros clínicos do pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistroClinicoResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Usuario": {
+      "get": {
+        "tags": [
+          "Usuario"
+        ],
+        "summary": "Lista usuários com paginação, ordenação e filtros.",
+        "description": "Exemplo: `GET /api/Usuario?nome=silva&ordenarPor=email&pagina=1&tamanhoPagina=10`.",
+        "parameters": [
+          {
+            "name": "nome",
+            "in": "query",
+            "description": "Parte do nome, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "description": "Parte do e-mail, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanhoPagina",
+            "in": "query",
+            "description": "Quantidade de itens por página, de 1 a 50.",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Os valores aceitos variam por recurso.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "Direção da ordenação: `asc` ou `desc`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de usuários.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResponsePagedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro de paginação, ordenação ou filtro inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "post": {
+        "tags": [
+          "Usuario"
+        ],
+        "summary": "Cria um novo usuário.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUsuarioRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUsuarioRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUsuarioRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuário criado com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Usuario/{id}": {
+      "get": {
+        "tags": [
+          "Usuario"
+        ],
+        "summary": "Busca um usuário pelo ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do usuário.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuário encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuário não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "put": {
+        "tags": [
+          "Usuario"
+        ],
+        "summary": "Atualiza nome e telefone de um usuário.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do usuário.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Novos dados do usuário.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUsuarioRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUsuarioRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUsuarioRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Atualizado com sucesso."
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuário não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Usuario"
+        ],
+        "summary": "Remove um usuário.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID do usuário.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Removido com sucesso."
+          },
+          "404": {
+            "description": "Usuário não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Usuario/email/{email}": {
+      "get": {
+        "tags": [
+          "Usuario"
+        ],
+        "summary": "Busca um usuário pelo e-mail.",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "path",
+            "description": "E-mail do usuário.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuário encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "E-mail inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuário não encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Usuario/nome/{nome}": {
+      "get": {
+        "tags": [
+          "Usuario"
+        ],
+        "summary": "Busca usuários pelo nome (busca parcial).",
+        "parameters": [
+          {
+            "name": "nome",
+            "in": "path",
+            "description": "Nome ou parte do nome.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de usuários encontrados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UsuarioResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nome inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Vacina": {
+      "get": {
+        "tags": [
+          "Vacina"
+        ],
+        "summary": "Lista vacinas com paginação, ordenação e filtros.",
+        "description": "Exemplo: `GET /api/Vacina?proximaDoseAte=2026-12-31&ordenarPor=proximaDose&pagina=1`\r\nlista as doses que vencem até o fim do ano, da mais próxima para a mais distante.",
+        "parameters": [
+          {
+            "name": "petId",
+            "in": "query",
+            "description": "ID do pet vacinado.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "nome",
+            "in": "query",
+            "description": "Parte do nome da vacina, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "aplicacaoInicio",
+            "in": "query",
+            "description": "Aplicadas a partir desta data (yyyy-MM-dd), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "aplicacaoFim",
+            "in": "query",
+            "description": "Aplicadas até esta data (yyyy-MM-dd), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "proximaDoseAte",
+            "in": "query",
+            "description": "Com próxima dose até esta data (yyyy-MM-dd), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanhoPagina",
+            "in": "query",
+            "description": "Quantidade de itens por página, de 1 a 50.",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Os valores aceitos variam por recurso.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "Direção da ordenação: `asc` ou `desc`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de vacinas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VacinaResponsePagedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro de paginação, ordenação ou filtro inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "post": {
+        "tags": [
+          "Vacina"
+        ],
+        "summary": "Cria uma nova vacina.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVacinaRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVacinaRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVacinaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Vacina criada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VacinaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Vacina/{id}": {
+      "get": {
+        "tags": [
+          "Vacina"
+        ],
+        "summary": "Busca uma vacina pelo ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID da vacina.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vacina encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VacinaResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Vacina não encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      },
+      "put": {
+        "tags": [
+          "Vacina"
+        ],
+        "summary": "Atualiza os dados de uma vacina.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID da vacina.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Novos dados da vacina.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVacinaRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVacinaRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVacinaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Atualizado com sucesso."
+          },
+          "400": {
+            "description": "Dados inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Vacina não encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Vacina"
+        ],
+        "summary": "Remove uma vacina.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID da vacina.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Removido com sucesso."
+          },
+          "404": {
+            "description": "Vacina não encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Vacina/pet/{petId}": {
+      "get": {
+        "tags": [
+          "Vacina"
+        ],
+        "summary": "Lista todas as vacinas de um pet.",
+        "parameters": [
+          {
+            "name": "petId",
+            "in": "path",
+            "description": "ID do pet.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de vacinas do pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VacinaResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
+    "/api/Vacina/proxima-dose/{data}": {
+      "get": {
+        "tags": [
+          "Vacina"
+        ],
+        "summary": "Lista vacinas com próxima dose até uma data.",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "path",
+            "description": "Data limite (formato: yyyy-MM-dd).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de vacinas com dose pendente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VacinaResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConsultaResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tipoConsulta": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hora": {
+            "type": "string",
+            "nullable": true
+          },
+          "local": {
+            "type": "string",
+            "nullable": true
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConsultaResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsultaResponse"
+            },
+            "description": "Itens da página atual.",
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "description": "Número da página atual, a partir de 1.",
+            "format": "int32"
+          },
+          "tamanhoPagina": {
+            "type": "integer",
+            "description": "Quantidade máxima de itens por página.",
+            "format": "int32"
+          },
+          "totalItens": {
+            "type": "integer",
+            "description": "Total de registros que atendem aos filtros.",
+            "format": "int32"
+          },
+          "totalPaginas": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "temPaginaAnterior": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "temProximaPagina": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Página de uma listagem, com os metadados de navegação e os links HATEOAS\r\n(`self`, `first`, `prev`, `next`, `last`)."
+      },
+      "CreateConsultaRequest": {
+        "type": "object",
+        "properties": {
+          "tipoConsulta": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hora": {
+            "type": "string",
+            "nullable": true
+          },
+          "local": {
+            "type": "string",
+            "nullable": true
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreatePetRequest": {
+        "type": "object",
+        "properties": {
+          "nomePet": {
+            "type": "string",
+            "nullable": true
+          },
+          "especie": {
+            "$ref": "#/components/schemas/EspeciePet"
+          },
+          "raca": {
+            "type": "string",
+            "nullable": true
+          },
+          "idade": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamanho": {
+            "$ref": "#/components/schemas/PortePet"
+          },
+          "peso": {
+            "type": "number",
+            "format": "double"
+          },
+          "usuarioId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateRegistroClinicoRequest": {
+        "type": "object",
+        "properties": {
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoRegistroClinico"
+          },
+          "titulo": {
+            "type": "string",
+            "nullable": true
+          },
+          "descricao": {
+            "type": "string",
+            "nullable": true
+          },
+          "veterinario": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataRegistro": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sintomas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "medicamentos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicamentoRequest"
+            },
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateUsuarioRequest": {
+        "type": "object",
+        "properties": {
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "senha": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpf": {
+            "type": "string",
+            "nullable": true
+          },
+          "telefone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateVacinaRequest": {
+        "type": "object",
+        "properties": {
+          "nomeVacina": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataAplicacao": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "proximaDose": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "localAplicacao": {
+            "type": "string",
+            "nullable": true
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EspeciePet": {
+        "enum": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "LinkResponse": {
+        "type": "object",
+        "properties": {
+          "href": {
+            "type": "string",
+            "description": "URL absoluta do recurso ou da ação.",
+            "nullable": true
+          },
+          "rel": {
+            "type": "string",
+            "description": "Relação com o recurso atual (ex.: `self`, `update`, `next`).",
+            "nullable": true
+          },
+          "method": {
+            "type": "string",
+            "description": "Método HTTP a ser usado.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Link HATEOAS: indica ao cliente uma ação ou um recurso relacionado disponível a partir\r\nda resposta atual, sem que ele precise montar URLs por conta própria."
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "senha": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Credenciais enviadas para autenticação."
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiraEm": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resultado de uma autenticação bem-sucedida.\r\nNão inclui a senha nem qualquer outro dado sensível do usuário."
+      },
+      "MedicamentoRequest": {
+        "type": "object",
+        "properties": {
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "dosagem": {
+            "type": "string",
+            "nullable": true
+          },
+          "frequencia": {
+            "type": "string",
+            "nullable": true
+          },
+          "duracaoDias": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MedicamentoResponse": {
+        "type": "object",
+        "properties": {
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "dosagem": {
+            "type": "string",
+            "nullable": true
+          },
+          "frequencia": {
+            "type": "string",
+            "nullable": true
+          },
+          "duracaoDias": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PetResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nomePet": {
+            "type": "string",
+            "nullable": true
+          },
+          "especie": {
+            "$ref": "#/components/schemas/EspeciePet"
+          },
+          "raca": {
+            "type": "string",
+            "nullable": true
+          },
+          "idade": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamanho": {
+            "$ref": "#/components/schemas/PortePet"
+          },
+          "peso": {
+            "type": "number",
+            "format": "double"
+          },
+          "usuarioId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PetResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PetResponse"
+            },
+            "description": "Itens da página atual.",
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "description": "Número da página atual, a partir de 1.",
+            "format": "int32"
+          },
+          "tamanhoPagina": {
+            "type": "integer",
+            "description": "Quantidade máxima de itens por página.",
+            "format": "int32"
+          },
+          "totalItens": {
+            "type": "integer",
+            "description": "Total de registros que atendem aos filtros.",
+            "format": "int32"
+          },
+          "totalPaginas": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "temPaginaAnterior": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "temProximaPagina": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Página de uma listagem, com os metadados de navegação e os links HATEOAS\r\n(`self`, `first`, `prev`, `next`, `last`)."
+      },
+      "PortePet": {
+        "enum": [
+          1,
+          2,
+          3
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "RegistroClinicoResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoRegistroClinico"
+          },
+          "titulo": {
+            "type": "string",
+            "nullable": true
+          },
+          "descricao": {
+            "type": "string",
+            "nullable": true
+          },
+          "veterinario": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataRegistro": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sintomas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "medicamentos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicamentoResponse"
+            },
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "dataCriacao": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dataAtualizacao": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistroClinicoResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistroClinicoResponse"
+            },
+            "description": "Itens da página atual.",
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "description": "Número da página atual, a partir de 1.",
+            "format": "int32"
+          },
+          "tamanhoPagina": {
+            "type": "integer",
+            "description": "Quantidade máxima de itens por página.",
+            "format": "int32"
+          },
+          "totalItens": {
+            "type": "integer",
+            "description": "Total de registros que atendem aos filtros.",
+            "format": "int32"
+          },
+          "totalPaginas": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "temPaginaAnterior": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "temProximaPagina": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Página de uma listagem, com os metadados de navegação e os links HATEOAS\r\n(`self`, `first`, `prev`, `next`, `last`)."
+      },
+      "TipoRegistroClinico": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "UpdateConsultaRequest": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hora": {
+            "type": "string",
+            "nullable": true
+          },
+          "local": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdatePetRequest": {
+        "type": "object",
+        "properties": {
+          "nomePet": {
+            "type": "string",
+            "nullable": true
+          },
+          "raca": {
+            "type": "string",
+            "nullable": true
+          },
+          "idade": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamanho": {
+            "$ref": "#/components/schemas/PortePet"
+          },
+          "peso": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateRegistroClinicoRequest": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "$ref": "#/components/schemas/TipoRegistroClinico"
+          },
+          "titulo": {
+            "type": "string",
+            "nullable": true
+          },
+          "descricao": {
+            "type": "string",
+            "nullable": true
+          },
+          "veterinario": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataRegistro": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sintomas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "medicamentos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicamentoRequest"
+            },
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Substitui o conteúdo do registro. O pet não pode ser trocado: um registro clínico\r\npertence ao prontuário do pet em que foi criado."
+      },
+      "UpdateUsuarioRequest": {
+        "type": "object",
+        "properties": {
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "telefone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateVacinaRequest": {
+        "type": "object",
+        "properties": {
+          "proximaDose": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "localAplicacao": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UsuarioResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpf": {
+            "type": "string",
+            "nullable": true
+          },
+          "telefone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UsuarioResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsuarioResponse"
+            },
+            "description": "Itens da página atual.",
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "description": "Número da página atual, a partir de 1.",
+            "format": "int32"
+          },
+          "tamanhoPagina": {
+            "type": "integer",
+            "description": "Quantidade máxima de itens por página.",
+            "format": "int32"
+          },
+          "totalItens": {
+            "type": "integer",
+            "description": "Total de registros que atendem aos filtros.",
+            "format": "int32"
+          },
+          "totalPaginas": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "temPaginaAnterior": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "temProximaPagina": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Página de uma listagem, com os metadados de navegação e os links HATEOAS\r\n(`self`, `first`, `prev`, `next`, `last`)."
+      },
+      "VacinaResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nomeVacina": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataAplicacao": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "proximaDose": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "localAplicacao": {
+            "type": "string",
+            "nullable": true
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VacinaResponsePagedResponse": {
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkResponse"
+            },
+            "description": "Ações e recursos relacionados disponíveis a partir deste recurso.",
+            "nullable": true
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VacinaResponse"
+            },
+            "description": "Itens da página atual.",
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "description": "Número da página atual, a partir de 1.",
+            "format": "int32"
+          },
+          "tamanhoPagina": {
+            "type": "integer",
+            "description": "Quantidade máxima de itens por página.",
+            "format": "int32"
+          },
+          "totalItens": {
+            "type": "integer",
+            "description": "Total de registros que atendem aos filtros.",
+            "format": "int32"
+          },
+          "totalPaginas": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "temPaginaAnterior": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "temProximaPagina": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Página de uma listagem, com os metadados de navegação e os links HATEOAS\r\n(`self`, `first`, `prev`, `next`, `last`)."
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "Autentique-se em POST /api/Auth/login e informe apenas o token.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "Bearer": [ ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Consulta"
+    },
+    {
+      "name": "Pet"
+    },
+    {
+      "name": "RegistroClinico"
+    },
+    {
+      "name": "Usuario"
+    },
+    {
+      "name": "Vacina"
+    }
+  ]
+}
